@@ -27,8 +27,10 @@ Non-goals:
 ## Repos
 
 - **`jvanlier/recall`** (public): the app. Contains no cards.
-- **The cards repo** (private, on GitHub): decks as `.md` files, plus
-  `.recall/` for app state.
+- **The cards repo**, [`jvanlier/recall-cards`](https://github.com/jvanlier/recall-cards)
+  (private, `git@github.com:jvanlier/recall-cards.git`): decks as `.md`
+  files, plus `.recall/` for app state. The app never hard-codes it: it
+  works on whatever clone `RECALL_CARDS_DIR` points to.
 
 ```text
 cards/
