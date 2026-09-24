@@ -63,6 +63,33 @@ def test_card_types(
     assert result.warnings == []
 
 
+def test_double_question_marker_has_priority_over_single_question(
+    tmp_path: Path,
+) -> None:
+    result = parse_snippet(tmp_path, "Front\n?\nMiddle\n??\nBack\n")
+
+    assert [card.kind for card in result.cards] == ["reverse-fwd", "reverse-rev"]
+    assert result.cards[0].front == "Front\n?\nMiddle"
+    assert result.cards[0].back == "Back"
+
+
+def test_cloze_syntax_must_be_a_markdown_mark_token(tmp_path: Path) -> None:
+    result = parse_snippet(
+        tmp_path,
+        """===value===
+
+---
+
+==first
+
+second==
+""",
+    )
+
+    assert result.cards == []
+    assert [warning.line for warning in result.warnings] == [1, 5]
+
+
 def test_cloze_metadata_and_whole_text(tmp_path: Path) -> None:
     result = parse_snippet(tmp_path, "One ==first== and ==second==^[hint].\n")
 

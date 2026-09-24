@@ -218,13 +218,28 @@ def _remove_cloze_syntax(source: str, clozes: Iterable[_Cloze]) -> str:
     )
 
 
-def _mark_count(tokens: Iterable[Token]) -> int:
-    count = 0
+def _mark_contents(tokens: Iterable[Token]) -> list[str]:
+    contents: list[str] = []
     for token in tokens:
         if token.type != "inline" or token.children is None:
             continue
-        count += sum(child.type == "mark_open" for child in token.children)
-    return count
+        children = token.children
+        for index, child in enumerate(children):
+            if child.type != "mark_open":
+                continue
+            end = next(
+                (
+                    close_index
+                    for close_index in range(index + 1, len(children))
+                    if children[close_index].type == "mark_close"
+                ),
+                None,
+            )
+            if end is not None:
+                contents.append(
+                    "".join(item.content for item in children[index + 1 : end])
+                )
+    return contents
 
 
 def _warning(warnings: list[Warning], file: Path, line: int, message: str) -> None:
@@ -289,9 +304,12 @@ def _parse_block(
     block_hidden = bool(hidden_comments)
 
     marker_line: tuple[int, str] | None = None
-    for index, line in enumerate(semantic_lines):
-        if line.strip() in {"?", "??"}:
-            marker_line = (index, line.strip())
+    for marker in ("??", "?"):
+        for index, line in enumerate(semantic_lines):
+            if line.strip() == marker:
+                marker_line = (index, marker)
+                break
+        if marker_line is not None:
             break
 
     if marker_line is not None:
@@ -340,11 +358,15 @@ def _parse_block(
             )
         return cards
 
-    mark_count = _mark_count(block_tokens)
+    mark_contents = _mark_contents(block_tokens)
     clozes = _find_clozes(clean, mask)
-    if mark_count or clozes:
-        if not clozes:
-            marker = visible.find("==")
+    valid_clozes = len(mark_contents) == len(clozes) and all(
+        content == cloze.text
+        for content, cloze in zip(mark_contents, clozes, strict=True)
+    )
+    if mark_contents or clozes:
+        if not valid_clozes:
+            marker = clozes[0].start if clozes else visible.find("==")
             _warning(
                 warnings,
                 file,
