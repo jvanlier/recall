@@ -137,6 +137,46 @@ def test_inline_code_and_math_do_not_create_syntax(tmp_path: Path) -> None:
     assert result.warnings == []
 
 
+def test_inline_masking_follows_markdown_paragraphs_and_escaping(
+    tmp_path: Path,
+) -> None:
+    result = parse_snippet(
+        tmp_path,
+        """\\`escaped::backtick`
+
+`unmatched
+
+question::answer
+""",
+    )
+
+    assert [card.front for card in result.cards] == [
+        "\\`escaped",
+        "question",
+    ]
+    assert [card.back for card in result.cards] == ["backtick`", "answer"]
+    assert result.warnings == []
+
+
+def test_clozes_can_contain_code_and_math_delimiters(tmp_path: Path) -> None:
+    result = parse_snippet(
+        tmp_path,
+        """==a $x==y$ b==
+
+---
+
+==a `x==y` b==
+""",
+    )
+
+    assert len(result.cards) == 2
+    assert [card.raw_text for card in result.cards] == [
+        "a $x==y$ b",
+        "a `x==y` b",
+    ]
+    assert result.warnings == []
+
+
 def test_blank_lines_are_kept_inside_card_sides(tmp_path: Path) -> None:
     result = parse_snippet(
         tmp_path,

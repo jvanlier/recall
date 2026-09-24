@@ -9,7 +9,7 @@ from pathlib import Path
 from markdown_it.token import Token
 
 from recall.cards import Card, ParseResult, Warning
-from recall.markdown import markdown_it
+from recall.markdown import code_span_end, markdown_it, math_span_end
 
 _MARKDOWN = markdown_it()
 
@@ -85,25 +85,16 @@ def _semantic_mask(
             continue
 
         if source[position] == "`":
-            run_end = position
-            while run_end < len(source) and source[run_end] == "`":
-                run_end += 1
-            delimiter = source[position:run_end]
-            close = source.find(delimiter, run_end)
-            if close != -1:
-                end = close + len(delimiter)
+            end = code_span_end(source, position)
+            if end is not None:
                 _mark_interval(mask, position, end)
                 line += source[position:end].count("\n")
                 position = end
                 continue
 
-        if source[position] == "$" and not _is_escaped(source, position):
-            delimiter = "$$" if source.startswith("$$", position) else "$"
-            close = source.find(delimiter, position + len(delimiter))
-            while close != -1 and _is_escaped(source, close):
-                close = source.find(delimiter, close + len(delimiter))
-            if close != -1:
-                end = close + len(delimiter)
+        if source[position] == "$":
+            end = math_span_end(source, position)
+            if end is not None:
                 _mark_interval(mask, position, end)
                 line += source[position:end].count("\n")
                 position = end
