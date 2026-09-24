@@ -108,7 +108,7 @@ the form `{"relink": "<old id>", "to": "<new id>"}` to the log.
 
 - The default ID is the first 12 hex characters of the SHA-256 of the
   front, after normalizing it (strip it and collapse whitespace). Cloze
-  cards hash the whole text, with the `==` markers removed.
+  cards hash the whole text, with the `==` markers and `^[hint]`s removed.
 - A reversible card's two sides get `<id>:fwd` and `<id>:rev`.
 - Each cloze deletion gets `<id>:<hash of the deleted text>`, so adding or
   reordering deletions doesn't shift the others.
@@ -213,14 +213,16 @@ because that's where the bugs would be.
 ## Tooling
 
 We use **prek** as the hook runner. It reads the same config as
-`pre-commit`.
+`pre-commit`. prek is not assumed to be installed: in the `recall` repo it
+is a uv dev dependency (`uv run prek install`, `uv run prek run`), and in
+the cards repo it runs through `uvx prek`.
 
 The `recall` repo runs:
 
 - On every commit: `ruff check --fix`, `ruff format`, `ty`,
   `markdownlint-cli2` (default rules) and `lychee --offline`.
 - Before each push: `pytest`.
-- In GitHub Actions: `prek run --all-files` and `pytest`.
+- In GitHub Actions: `uv run prek run --all-files` and `uv run pytest`.
 
 The cards repo runs prettier (`--prose-wrap preserve`),
 `markdownlint-cli2`, `lychee --offline` and `recall check`. The last one is
