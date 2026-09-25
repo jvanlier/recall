@@ -17,3 +17,9 @@ jobs:
           enable-cache: true
       - run: uv run prek run --all-files
       - run: uv run pytest
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag recall:ci .
