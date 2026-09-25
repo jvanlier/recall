@@ -60,7 +60,7 @@ def test_append_fsyncs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
     log.append("card", datetime.now(UTC), 2, 100)
 
-    assert len(calls) == 1
+    assert len(calls) >= 2
 
 
 def test_undo_when_pending_is_zero_changes_nothing(tmp_path: Path) -> None:
@@ -126,6 +126,29 @@ def test_malformed_and_unknown_lines(tmp_path: Path) -> None:
     assert reviews == [
         Review("valid", datetime(2026, 6, 10, 8, 12, 3, tzinfo=UTC), 4, 0)
     ]
+
+
+def test_invalid_utf8_is_warned_and_skipped(tmp_path: Path) -> None:
+    path = tmp_path / "reviews.jsonl"
+    path.write_bytes(
+        b'{"card": "broken\xff", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}\n'
+    )
+
+    with pytest.warns(UserWarning, match=r"line 1.*UTF-8"):
+        assert ReviewLog(path).read() == []
+
+
+def test_huge_integer_is_warned_and_skipped(tmp_path: Path) -> None:
+    path = tmp_path / "reviews.jsonl"
+    path.write_text(
+        '{"card": "card", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": '
+        + "9" * 5000
+        + "}\n",
+        encoding="utf-8",
+    )
+
+    with pytest.warns(UserWarning, match=r"line 1"):
+        assert ReviewLog(path).read() == []
 
 
 def test_file_without_trailing_newline(tmp_path: Path) -> None:

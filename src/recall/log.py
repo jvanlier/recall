@@ -75,6 +75,15 @@ def _review_from_record(record: dict[str, Any]) -> Review:
     )
 
 
+def _fsync_directory(path: Path) -> None:
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    file_descriptor = os.open(path, flags)
+    try:
+        os.fsync(file_descriptor)
+    finally:
+        os.close(file_descriptor)
+
+
 class ReviewLog:
     """Read and durably append reviews in a JSON Lines file."""
 
@@ -112,7 +121,17 @@ class ReviewLog:
         encoded = (json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8")
 
         with self._lock:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
+            parent = self.path.parent
+            new_directories: list[Path] = []
+            existing_directory = parent
+            while not existing_directory.exists():
+                new_directories.append(existing_directory)
+                existing_directory = existing_directory.parent
+            parent.mkdir(parents=True, exist_ok=True)
+            directories_to_sync = [parent, *new_directories[1:]]
+            if new_directories:
+                directories_to_sync.append(existing_directory)
+
             with self.path.open("a+b") as file:
                 file.seek(0, os.SEEK_END)
                 needs_separator = file.tell() > 0
@@ -125,24 +144,36 @@ class ReviewLog:
                 file.write(encoded)
                 file.flush()
                 os.fsync(file.fileno())
+            for directory in directories_to_sync:
+                _fsync_directory(directory)
             self._pending_separators.append(needs_separator)
 
     def read(self) -> list[Review]:
         """Read valid review records, warning about malformed lines."""
         with self._lock:
             try:
-                file = self.path.open("r", encoding="utf-8", errors="replace")
+                file = self.path.open("rb")
             except FileNotFoundError:
                 return []
 
             reviews: list[Review] = []
             with file:
-                for line_number, line in enumerate(file, start=1):
+                for line_number, raw_line in enumerate(file, start=1):
+                    try:
+                        line = raw_line.decode("utf-8")
+                    except UnicodeDecodeError as exc:
+                        warnings.warn(
+                            f"malformed review log line {line_number}: "
+                            f"invalid UTF-8 ({exc})",
+                            UserWarning,
+                            stacklevel=2,
+                        )
+                        continue
                     try:
                         record = json.loads(line)
-                    except json.JSONDecodeError as exc:
+                    except (json.JSONDecodeError, ValueError) as exc:
                         warnings.warn(
-                            f"malformed review log line {line_number}: {exc.msg}",
+                            f"malformed review log line {line_number}: {exc}",
                             UserWarning,
                             stacklevel=2,
                         )
