@@ -19,7 +19,8 @@ cp -a /path/to/recall/examples/cards/. recall-cards/
 cd recall-cards
 ```
 
-Install the hooks once per clone:
+Install Docker first; the offline link checker uses the `lychee-docker`
+hook. Then install the hooks once per clone:
 
 ```sh
 uvx prek install
