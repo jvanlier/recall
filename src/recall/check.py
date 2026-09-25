@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from urllib.parse import unquote, urlsplit
 
 from recall.cards import ParseResult, Warning
-from recall.markdown import code_span_end, markdown_it
-from recall.parser import load_repo
+from recall.markdown import code_span_end, markdown_it, math_span_end
+from recall.parser import load_repo, markdown_files
 
 _MARKDOWN = markdown_it()
 _IGNORED_TOKEN_TYPES = {
@@ -28,29 +29,12 @@ def _is_escaped(source: str, position: int) -> bool:
     return backslashes % 2 == 1
 
 
-def _is_hidden_path(path: Path, root: Path) -> bool:
-    relative = path.relative_to(root)
-    return any(part.startswith(".") for part in relative.parent.parts)
-
-
-def _markdown_files(root: Path) -> list[Path]:
-    """Return the markdown files checked by :func:`load_repo`."""
-    return sorted(
-        (
-            path
-            for path in root.rglob("*.md")
-            if path.is_file() and not _is_hidden_path(path, root)
-        ),
-        key=lambda path: path.relative_to(root).as_posix(),
-    )
-
-
 def _warning(file: Path, line: int, message: str) -> Warning:
     return Warning(file=file, line=line, message=message)
 
 
-def _ignored_mask(source: str) -> list[bool]:
-    """Mask comments and inline code in *source*."""
+def _ignored_mask(source: str, *, include_math: bool = False) -> list[bool]:
+    """Mask comments and code, and optionally math, in *source*."""
     mask = [False] * len(source)
     position = 0
     while position < len(source):
@@ -66,13 +50,23 @@ def _ignored_mask(source: str) -> list[bool]:
                 mask[position:end] = [True] * (end - position)
                 position = end
                 continue
+        if (
+            include_math
+            and source[position] == "$"
+            and not _is_escaped(source, position)
+        ):
+            end = math_span_end(source, position)
+            if end is not None:
+                mask[position:end] = [True] * (end - position)
+                position = end
+                continue
         position += 1
     return mask
 
 
-def _image_marker_positions(source: str) -> list[int]:
-    """Find markdown image markers outside comments and inline code."""
-    ignored = _ignored_mask(source)
+def _image_marker_positions(source: str, env: dict[str, Any]) -> list[int]:
+    """Find image markers that markdown-it recognizes in *source*."""
+    ignored = _ignored_mask(source, include_math=True)
     positions: list[int] = []
     position = 0
     while True:
@@ -80,7 +74,10 @@ def _image_marker_positions(source: str) -> list[int]:
         if position == -1:
             return positions
         if not ignored[position] and not _is_escaped(source, position):
-            positions.append(position)
+            parsed = _MARKDOWN.parseInline(source[position:], env)
+            children = parsed[0].children if parsed else None
+            if children and children[0].type == "image":
+                positions.append(position)
         position += 2
 
 
@@ -88,12 +85,13 @@ def _image_warnings(root: Path, path: Path) -> list[Warning]:
     source = path.read_text(encoding="utf-8")
     relative_file = path.relative_to(root)
     warnings: list[Warning] = []
+    env: dict[str, Any] = {}
 
-    for token in _MARKDOWN.parse(source):
+    for token in _MARKDOWN.parse(source, env):
         if token.type != "inline" or token.children is None:
             continue
         first_line = 1 if token.map is None else token.map[0] + 1
-        marker_positions = _image_marker_positions(token.content)
+        marker_positions = _image_marker_positions(token.content, env)
         marker_index = 0
         for child in token.children:
             if child.type != "image" or child.attrs is None:
@@ -175,19 +173,11 @@ def _check_image_path(
     return []
 
 
-def _closing_delimiter(
-    source: str, start: int, delimiter: str, ignored: list[bool]
-) -> int | None:
+def _closing_delimiter(source: str, start: int, delimiter: str) -> int | None:
+    """Find a math close delimiter, including inside code or comments."""
     position = start
     while position < len(source):
-        if ignored[position]:
-            position += 1
-            continue
-        if (
-            source.startswith(delimiter, position)
-            and not any(ignored[position : position + len(delimiter)])
-            and not _is_escaped(source, position)
-        ):
+        if source.startswith(delimiter, position) and not _is_escaped(source, position):
             return position
         position += 1
     return None
@@ -206,12 +196,7 @@ def _math_warnings_in_text(file: Path, source: str, first_line: int) -> list[War
             continue
 
         delimiter = "$$" if source.startswith("$$", position) else "$"
-        close = _closing_delimiter(
-            source,
-            position + len(delimiter),
-            delimiter,
-            ignored,
-        )
+        close = _closing_delimiter(source, position + len(delimiter), delimiter)
         if close is None:
             warnings.append(
                 _warning(
@@ -252,7 +237,7 @@ def check_repo(root: Path) -> ParseResult:
 
     result = load_repo(root)
     problems = list(result.warnings)
-    for path in _markdown_files(root):
+    for path in markdown_files(root):
         problems.extend(_image_warnings(root, path))
         problems.extend(_math_warnings(root, path))
 

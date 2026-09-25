@@ -43,6 +43,7 @@ def test_check_reports_problems_and_returns_one(
         """Question
 ?
 ![present](images/present.png)
+![not an image]
 ![missing](images/missing.png)
 ![escape](../outside.png)
 An unclosed $formula
@@ -56,11 +57,27 @@ An unclosed $formula
     assert main(["check", str(tmp_path)]) == 1
 
     output = capsys.readouterr().out
-    assert "Deck.md:4: missing image: 'images/missing.png'" in output
-    assert "Deck.md:5: image path escapes repository: '../outside.png'" in output
-    assert "Deck.md:6: unclosed math delimiter '$'" in output
+    assert "Deck.md:5: missing image: 'images/missing.png'" in output
+    assert "Deck.md:6: image path escapes repository: '../outside.png'" in output
+    assert "Deck.md:7: unclosed math delimiter '$'" in output
     assert "Deck.md:2: duplicate card ID" in output
     assert output.endswith("0 decks, 0 cards, 4 problems\n")
+
+
+def test_check_respects_code_and_math_precedence(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "Deck.md").write_text(
+        """Question
+?
+$x`y$ and `code`
+$x \\text{<!-- marker -->} y$
+""",
+        encoding="utf-8",
+    )
+
+    assert main(["check", str(tmp_path)]) == 0
+    assert capsys.readouterr().out == "1 decks, 1 cards, 0 problems\n"
 
 
 def test_check_uses_current_directory_by_default(
