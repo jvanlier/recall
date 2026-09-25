@@ -56,6 +56,21 @@ def test_cloze_replacement_is_safe_inside_image_alt_text(tmp_path: Path) -> None
     assert 'alt=" […] "' in rendered.front_html
 
 
+def test_cloze_replacement_is_safe_inside_link_labels(tmp_path: Path) -> None:
+    card = parse_snippet(tmp_path, "[==hello==](https://example.com)\n").cards[0]
+
+    rendered = render_card(card)
+
+    assert (
+        '<a href="https://example.com"><span class="cloze">[…]</span></a>'
+        in rendered.front_html
+    )
+    assert (
+        '<a href="https://example.com"><mark class="cloze-answer">hello</mark></a>'
+        in rendered.back_html
+    )
+
+
 def test_selected_cloze_keeps_reference_definitions(tmp_path: Path) -> None:
     card = parse_snippet(
         tmp_path, "==[foo][ref]==\n\n[ref]: https://example.com\n"

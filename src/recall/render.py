@@ -32,8 +32,8 @@ class RenderedCard:
 
 
 _PYGMENTS_STYLES = {"light": "default", "dark": "monokai"}
-_CLOZE_MARKER_START = "[[recall-cloze-"
-_CLOZE_MARKER_END = "]]"
+_CLOZE_MARKER_START = "!recall-cloze-"
+_CLOZE_MARKER_END = "!"
 _CLOZE_ENV = "recall_cloze_replacements"
 
 
