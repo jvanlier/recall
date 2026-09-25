@@ -2,6 +2,8 @@
 
 `recall` is a personal spaced repetition web app for reviewing markdown cards.
 See the [design document](docs/design.md) for the project plan and card format.
+The [cards repository guide](docs/cards-repo.md) explains how to set up a
+private repository for your decks.
 
 ## Development
 

@@ -1,0 +1,21 @@
+# Scheduler settings for recall.
+# Uncomment an option to override its default.
+
+# Target probability that a card is remembered when it is due.
+# desired_retention = 0.9
+
+# Optional FSRS-6 parameters. Omit this option to use py-fsrs defaults.
+# parameters = [ ... ]
+
+# Delays used when a card is learning or relearning.
+# learning_steps = ["1m", "10m"]
+# relearning_steps = ["10m"]
+
+# Maximum number of new cards introduced per day, across all decks.
+# new_per_day = 20
+
+# Local hour at which a review day starts.
+# day_start_hour = 4
+
+# Show a learning card early when it is due within this many minutes.
+# learn_ahead_minutes = 20
