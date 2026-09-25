@@ -99,6 +99,22 @@ def test_cloze_metadata_and_whole_text(tmp_path: Path) -> None:
     assert all(card.raw_text == "One first and second." for card in result.cards)
 
 
+def test_mark_inside_link_label_terminates() -> None:
+    from recall.markdown import markdown_it
+
+    tokens = markdown_it().parse("==hello==^[hint with ==symbols==]")
+
+    marks = [t for t in tokens[1].children or [] if t.type == "mark_open"]
+    assert len(marks) == 2
+
+
+def test_cloze_hint_containing_mark_warns(tmp_path: Path) -> None:
+    result = parse_snippet(tmp_path, "==hello==^[hint with ==symbols==]\n")
+
+    assert result.cards == []
+    assert [warning.line for warning in result.warnings] == [1]
+
+
 def test_code_fences_do_not_split_or_create_cards(tmp_path: Path) -> None:
     result = parse_snippet(
         tmp_path,

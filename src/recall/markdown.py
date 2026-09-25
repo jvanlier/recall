@@ -74,15 +74,14 @@ def _mark_rule(state: StateInline, silent: bool) -> bool:
     content = source[start + 2 : end]
     if not content or content.isspace():
         return False
-    if silent:
-        return True
-
-    token = state.push("mark_open", "mark", 1)
-    token.markup = "=="
-    token = state.push("text", "", 0)
-    token.content = content
-    token = state.push("mark_close", "mark", -1)
-    token.markup = "=="
+    if not silent:
+        token = state.push("mark_open", "mark", 1)
+        token.markup = "=="
+        token = state.push("text", "", 0)
+        token.content = content
+        token = state.push("mark_close", "mark", -1)
+        token.markup = "=="
+    # markdown-it requires successful rules to consume input in silent mode too.
     state.pos = end + 2
     return True
 
