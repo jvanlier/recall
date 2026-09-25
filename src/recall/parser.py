@@ -23,7 +23,9 @@ class _Comment:
 
 
 @dataclass(frozen=True, slots=True)
-class _Cloze:
+class ClozeSpan:
+    """The source offsets of one parsed cloze deletion."""
+
     start: int
     end: int
     hint_start: int | None
@@ -149,9 +151,9 @@ def _line_number(source: str, offset: int, first_line: int) -> int:
     return first_line + source.count("\n", 0, offset) + 1
 
 
-def _find_clozes(source: str, mask: list[bool]) -> list[_Cloze]:
+def _find_clozes(source: str, mask: list[bool]) -> list[ClozeSpan]:
     visible = _masked(source, mask)
-    result: list[_Cloze] = []
+    result: list[ClozeSpan] = []
     position = 0
     while True:
         start = visible.find("==", position)
@@ -176,7 +178,7 @@ def _find_clozes(source: str, mask: list[bool]) -> list[_Cloze]:
                 hint_end = close_hint + 1
 
         result.append(
-            _Cloze(
+            ClozeSpan(
                 start=start,
                 end=end + 2,
                 hint_start=hint_start,
@@ -184,6 +186,20 @@ def _find_clozes(source: str, mask: list[bool]) -> list[_Cloze]:
             )
         )
         position = hint_end
+
+
+def find_cloze_spans(source: str, mask: list[bool] | None = None) -> list[ClozeSpan]:
+    """Return cloze spans using the parser's syntax-aware tokenization.
+
+    Callers rendering already-parsed card text can omit *mask*.  The parser
+    passes its existing mask so comments and protected source ranges retain
+    their original offsets.
+    """
+    if mask is None:
+        tokens = _MARKDOWN.parse(source)
+        protected_lines = _protected_lines(tokens)
+        mask, _ = _semantic_mask(source, protected_lines)
+    return _find_clozes(source, mask)
 
 
 def _comment_mask(length: int, comments: Iterable[_Comment]) -> list[bool]:
@@ -205,7 +221,9 @@ def _kept(
     )
 
 
-def _without_cloze_syntax(removed: list[bool], clozes: Iterable[_Cloze]) -> list[bool]:
+def _without_cloze_syntax(
+    removed: list[bool], clozes: Iterable[ClozeSpan]
+) -> list[bool]:
     removed = removed.copy()
     for cloze in clozes:
         _mark_interval(removed, cloze.start, cloze.start + 2)
@@ -358,7 +376,7 @@ def _parse_block(
         return cards
 
     mark_contents = _mark_contents(block_tokens)
-    clozes = _find_clozes(clean, mask)
+    clozes = find_cloze_spans(clean, mask)
     # Tokens come from the original source; comments are blanked in *clean*
     # without shifting offsets, so compare against the same source text.
     valid_clozes = len(mark_contents) == len(clozes) and all(

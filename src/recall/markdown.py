@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from markdown_it import MarkdownIt
+from markdown_it.renderer import RendererHTML
 from markdown_it.rules_inline import StateInline
 
 _BLANK_LINE = re.compile(r"\n[ \t]*\n")
@@ -121,10 +122,14 @@ def mark_plugin(md: MarkdownIt) -> None:
     md.inline.ruler.before("strikethrough", "mark", _mark_rule)
 
 
-def markdown_it() -> MarkdownIt:
+def markdown_it(
+    *, html: bool = True, renderer_cls: type[RendererHTML] = RendererHTML
+) -> MarkdownIt:
     """Return the configured Markdown-it instance used for card syntax."""
     from mdit_py_plugins.dollarmath import dollarmath_plugin
 
     return (
-        MarkdownIt("commonmark", {"html": True}).use(mark_plugin).use(dollarmath_plugin)
+        MarkdownIt("commonmark", {"html": html}, renderer_cls=renderer_cls)
+        .use(mark_plugin)
+        .use(dollarmath_plugin)
     )
