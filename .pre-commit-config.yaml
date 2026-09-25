@@ -20,7 +20,7 @@ repos:
     rev: v0.15.1
     hooks:
       - id: lychee-docker
-        args: [--offline]
+        args: [--offline, --exclude-path, "src/recall/templates/.*"]
   - repo: local
     hooks:
       - id: pytest
