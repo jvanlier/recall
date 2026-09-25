@@ -1,0 +1,5 @@
+config:
+  MD003: atx
+  MD013: false
+  MD035: '---'
+  MD041: false
