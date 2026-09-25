@@ -32,6 +32,7 @@ class Card:
     cloze_text: str | None = None
     cloze_index: int | None = None
     cloze_hint: str | None = None
+    cloze_deleted: str | None = None
     id: str | None = None
     sibling_key: str | None = None
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from markdown_it.token import Token
 
 from recall.cards import Card, ParseResult, Warning
+from recall.ids import assign_ids
 from recall.markdown import code_span_end, markdown_it, math_span_end
 
 _MARKDOWN = markdown_it()
@@ -255,6 +256,7 @@ def _card(
     cloze_text: str | None = None,
     cloze_index: int | None = None,
     cloze_hint: str | None = None,
+    cloze_deleted: str | None = None,
 ) -> Card:
     return Card(
         deck=deck,
@@ -270,6 +272,7 @@ def _card(
         cloze_text=cloze_text,
         cloze_index=cloze_index,
         cloze_hint=cloze_hint,
+        cloze_deleted=cloze_deleted,
     )
 
 
@@ -394,6 +397,9 @@ def _parse_block(
                     if cloze.hint_start is None
                     else _kept(
                         source, in_comment, cloze.hint_start, cloze.hint_end - 1
+                    ),
+                    cloze_deleted=_kept(
+                        source, in_comment, cloze.start + 2, cloze.end - 2
                     ),
                 )
             )
@@ -568,11 +574,11 @@ def load_repo(root: Path) -> ParseResult:
 
     cards: list[Card] = []
     warnings: list[Warning] = []
-    decks: list[str] = []
     for path in paths:
         file_cards, file_warnings = _parse_file(root, path)
-        if file_cards:
-            decks.append(path.relative_to(root).with_suffix("").as_posix())
-            cards.extend(file_cards)
+        cards.extend(file_cards)
         warnings.extend(file_warnings)
+
+    cards = assign_ids(cards, warnings)
+    decks = list(dict.fromkeys(card.deck for card in cards))
     return ParseResult(decks=decks, cards=cards, warnings=warnings)
