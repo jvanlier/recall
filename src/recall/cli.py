@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from recall.check import check_repo
+from recall.main import create_app, load_settings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,8 +33,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the recall command-line interface."""
     args = build_parser().parse_args(argv)
     if args.command == "serve":
-        print("not implemented")
-        return 1
+        try:
+            settings = load_settings()
+        except ValueError as error:
+            print(f"recall serve: {error}")
+            return 1
+
+        import uvicorn
+
+        uvicorn.run(
+            create_app(settings),
+            host=settings.host,
+            port=settings.port,
+        )
+        return 0
 
     try:
         result = check_repo(Path.cwd() if args.path is None else args.path)

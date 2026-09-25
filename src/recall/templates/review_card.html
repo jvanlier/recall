@@ -1,0 +1,38 @@
+<section id="review-card" class="review-card" data-card-id="{{ card.id if card else '' }}">
+  {% if card %}
+  <p class="card-meta">{{ card.deck }} · {{ card.kind }}</p>
+  <article class="card-content question" aria-label="Question">
+    {{ rendered.front_html|safe }}
+  </article>
+  <button class="button button-answer" type="button" data-show-answer aria-controls="answer" aria-expanded="false">Show answer</button>
+  <article id="answer" class="card-content answer" data-answer aria-label="Answer" hidden>
+    {{ rendered.back_html|safe }}
+  </article>
+
+  <div class="ratings" data-ratings hidden>
+    <p class="rating-label">How well did you remember it?</p>
+    <form class="rating-form" hx-post="{{ url_for('rate') }}" hx-target="#review-card" hx-swap="outerHTML">
+      <input type="hidden" name="card" value="{{ card.id }}">
+      <input type="hidden" name="scope" value="{{ session.scope }}">
+      <input type="hidden" name="ms" value="0" data-elapsed>
+      <button class="rating rating-again" type="submit" name="rating" value="1"><strong>1</strong><span>Again</span></button>
+      <button class="rating rating-hard" type="submit" name="rating" value="2"><strong>2</strong><span>Hard</span></button>
+      <button class="rating rating-good" type="submit" name="rating" value="3"><strong>3</strong><span>Good</span></button>
+      <button class="rating rating-easy" type="submit" name="rating" value="4"><strong>4</strong><span>Easy</span></button>
+    </form>
+  </div>
+
+  <div class="review-actions">
+    <form hx-post="{{ url_for('undo') }}" hx-target="#review-card" hx-swap="outerHTML">
+      <input type="hidden" name="scope" value="{{ session.scope }}">
+      <button class="button button-secondary" type="submit" data-undo>Undo</button>
+    </form>
+    <form hx-post="{{ url_for('done') }}" hx-target="#review-card" hx-swap="outerHTML">
+      <input type="hidden" name="scope" value="{{ session.scope }}">
+      <button class="button button-secondary" type="submit">Done</button>
+    </form>
+  </div>
+  {% else %}
+  {% include "done_fragment.html" %}
+  {% endif %}
+</section>

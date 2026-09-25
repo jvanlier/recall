@@ -1,0 +1,9 @@
+<div class="done-state">
+  <p class="eyebrow">Session complete</p>
+  <h1>Nice work.</h1>
+  <p>You reviewed <strong>{{ session.reviewed }}</strong> card{% if session.reviewed != 1 %}s{% endif %}.</p>
+  <div class="done-actions">
+    <a class="button button-primary" href="{{ url_for('review_path', scope=session.scope) }}">Review again</a>
+    <a class="button button-secondary" href="{{ url_for('deck_list') }}">Back to decks</a>
+  </div>
+</div>

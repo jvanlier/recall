@@ -18,10 +18,10 @@ def test_help_lists_commands(capsys: pytest.CaptureFixture[str]) -> None:
     assert "check" in output
 
 
-def test_serve_is_not_implemented_yet(capsys: pytest.CaptureFixture[str]) -> None:
-    """The web app command remains a placeholder until the web app ticket."""
+def test_serve_requires_cards_directory(capsys: pytest.CaptureFixture[str]) -> None:
+    """The server reports a useful error when its required setting is absent."""
     assert main(["serve"]) == 1
-    assert capsys.readouterr().out == "not implemented\n"
+    assert "RECALL_CARDS_DIR is required" in capsys.readouterr().out
 
 
 def test_check_clean_repo_returns_zero(
