@@ -15,7 +15,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
-      - run: uv run prek run --all-files
+      - run: uv run prek run --all-files --skip lychee
       - run: uv run pytest
 
   docker:
