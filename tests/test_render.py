@@ -32,9 +32,7 @@ def test_reversible_cards_keep_the_parser_direction(tmp_path: Path) -> None:
 
 
 def test_cloze_masks_only_the_selected_deletion(tmp_path: Path) -> None:
-    cards = parse_snippet(
-        tmp_path, "The capital of ==Australia== is ==Canberra==^[city].\n"
-    ).cards
+    cards = parse_snippet(tmp_path, "The capital of ==Australia== is ==Canberra==^[city].\n").cards
 
     first = render_card(cards[0])
     second = render_card(cards[1])
@@ -61,20 +59,12 @@ def test_cloze_replacement_is_safe_inside_link_labels(tmp_path: Path) -> None:
 
     rendered = render_card(card)
 
-    assert (
-        '<a href="https://example.com"><span class="cloze">[…]</span></a>'
-        in rendered.front_html
-    )
-    assert (
-        '<a href="https://example.com"><mark class="cloze-answer">hello</mark></a>'
-        in rendered.back_html
-    )
+    assert '<a href="https://example.com"><span class="cloze">[…]</span></a>' in rendered.front_html
+    assert '<a href="https://example.com"><mark class="cloze-answer">hello</mark></a>' in rendered.back_html
 
 
 def test_selected_cloze_keeps_reference_definitions(tmp_path: Path) -> None:
-    card = parse_snippet(
-        tmp_path, "==[foo][ref]==\n\n[ref]: https://example.com\n"
-    ).cards[0]
+    card = parse_snippet(tmp_path, "==[foo][ref]==\n\n[ref]: https://example.com\n").cards[0]
 
     rendered = render_card(card)
 

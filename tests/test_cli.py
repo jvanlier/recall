@@ -24,9 +24,7 @@ def test_serve_requires_cards_directory(capsys: pytest.CaptureFixture[str]) -> N
     assert "RECALL_CARDS_DIR is required" in capsys.readouterr().out
 
 
-def test_check_clean_repo_returns_zero(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_check_clean_repo_returns_zero(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "Deck.md").write_text("Question\n?\nAnswer\n", encoding="utf-8")
 
     assert main(["check", str(tmp_path)]) == 0
@@ -34,9 +32,7 @@ def test_check_clean_repo_returns_zero(
     assert capsys.readouterr().out == "1 decks, 1 cards, 0 problems\n"
 
 
-def test_check_reports_problems_and_returns_one(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_check_reports_problems_and_returns_one(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "images").mkdir()
     (tmp_path / "images" / "present.png").write_bytes(b"image")
     (tmp_path / "Deck.md").write_text(
@@ -50,9 +46,7 @@ An unclosed $formula
 """,
         encoding="utf-8",
     )
-    (tmp_path / "Duplicate.md").write_text(
-        "Question\n?\nAnother answer\n", encoding="utf-8"
-    )
+    (tmp_path / "Duplicate.md").write_text("Question\n?\nAnother answer\n", encoding="utf-8")
 
     assert main(["check", str(tmp_path)]) == 1
 
@@ -64,9 +58,7 @@ An unclosed $formula
     assert output.endswith("0 decks, 0 cards, 4 problems\n")
 
 
-def test_check_respects_code_and_math_precedence(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_check_respects_code_and_math_precedence(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "Deck.md").write_text(
         """Question
 ?
@@ -80,9 +72,7 @@ $x \\text{<!-- marker -->} y$
     assert capsys.readouterr().out == "1 decks, 1 cards, 0 problems\n"
 
 
-def test_check_reports_math_after_valid_math_and_code(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_check_reports_math_after_valid_math_and_code(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "Deck.md").write_text(
         """Question
 ?

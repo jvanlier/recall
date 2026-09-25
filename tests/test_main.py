@@ -55,9 +55,7 @@ def test_review_cycle_appends_to_log(tmp_path: Path) -> None:
         assert "Session complete" in response.text
         assert "Undo last rating" in response.text
 
-    assert '"rating": 3' in (tmp_path / ".recall" / "reviews.jsonl").read_text(
-        encoding="utf-8"
-    )
+    assert '"rating": 3' in (tmp_path / ".recall" / "reviews.jsonl").read_text(encoding="utf-8")
 
 
 def test_stale_rating_is_rejected_and_new_session_resets_count(tmp_path: Path) -> None:
@@ -105,9 +103,7 @@ def test_undo_removes_last_review_and_shows_card_again(tmp_path: Path) -> None:
 
 def test_deck_links_encode_url_delimiters(tmp_path: Path) -> None:
     (tmp_path / "C#.md").write_text("Question one::Answer one\n", encoding="utf-8")
-    (tmp_path / "Folder?Name.md").write_text(
-        "Question two::Answer two\n", encoding="utf-8"
-    )
+    (tmp_path / "Folder?Name.md").write_text("Question two::Answer two\n", encoding="utf-8")
 
     with TestClient(create_app(Settings(tmp_path))) as client:
         response = client.get("/")
@@ -148,9 +144,7 @@ def test_media_validation(tmp_path: Path) -> None:
     payload.write_text("<script>alert(1)</script>", encoding="utf-8")
     (tmp_path / "escape.png").symlink_to(outside)
     (tmp_path / "active.png").symlink_to(payload)
-    (tmp_path / "active.svg").write_text(
-        "<svg><script>alert(1)</script></svg>", encoding="utf-8"
-    )
+    (tmp_path / "active.svg").write_text("<svg><script>alert(1)</script></svg>", encoding="utf-8")
 
     try:
         with TestClient(app_for(tmp_path)) as client:

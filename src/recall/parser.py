@@ -59,9 +59,7 @@ def _mark_interval(mask: list[bool], start: int, end: int) -> None:
     mask[start:end] = [True] * (end - start)
 
 
-def _semantic_mask(
-    source: str, protected_lines: set[int]
-) -> tuple[list[bool], list[_Comment]]:
+def _semantic_mask(source: str, protected_lines: set[int]) -> tuple[list[bool], list[_Comment]]:
     """Mask code, math, and comments from card syntax recognition."""
     mask = [False] * len(source)
     comments: list[_Comment] = []
@@ -108,11 +106,7 @@ def _semantic_mask(
 
 
 def _comment_body(comment: _Comment) -> str:
-    body = (
-        comment.content[4:-3]
-        if comment.content.endswith("-->")
-        else comment.content[4:]
-    )
+    body = comment.content[4:-3] if comment.content.endswith("-->") else comment.content[4:]
     return body.strip()
 
 
@@ -141,10 +135,7 @@ def _line_spans(source: str) -> list[tuple[int, int]]:
 
 
 def _masked(source: str, mask: list[bool]) -> str:
-    return "".join(
-        " " if mask[index] and character != "\n" else character
-        for index, character in enumerate(source)
-    )
+    return "".join(" " if mask[index] and character != "\n" else character for index, character in enumerate(source))
 
 
 def _line_number(source: str, offset: int, first_line: int) -> int:
@@ -162,9 +153,7 @@ def _find_clozes(source: str, mask: list[bool]) -> list[ClozeSpan]:
         if start == -1:
             return result
         end = visible.find("==", start + 2)
-        while end != -1 and (
-            _is_escaped(source, end) or not source[start + 2 : end].strip()
-        ):
+        while end != -1 and (_is_escaped(source, end) or not source[start + 2 : end].strip()):
             end = visible.find("==", end + 2)
         if end == -1:
             return result
@@ -209,21 +198,13 @@ def _comment_mask(length: int, comments: Iterable[_Comment]) -> list[bool]:
     return mask
 
 
-def _kept(
-    source: str, removed: list[bool], start: int = 0, end: int | None = None
-) -> str:
+def _kept(source: str, removed: list[bool], start: int = 0, end: int | None = None) -> str:
     """Return ``source[start:end]`` without the characters marked *removed*."""
     end = len(source) if end is None else end
-    return "".join(
-        character
-        for index, character in enumerate(source[start:end], start)
-        if not removed[index]
-    )
+    return "".join(character for index, character in enumerate(source[start:end], start) if not removed[index])
 
 
-def _without_cloze_syntax(
-    removed: list[bool], clozes: Iterable[ClozeSpan]
-) -> list[bool]:
+def _without_cloze_syntax(removed: list[bool], clozes: Iterable[ClozeSpan]) -> list[bool]:
     removed = removed.copy()
     for cloze in clozes:
         _mark_interval(removed, cloze.start, cloze.start + 2)
@@ -249,9 +230,7 @@ def _mark_contents(tokens: Iterable[Token]) -> list[str]:
                 None,
             )
             if end is not None:
-                contents.append(
-                    "".join(item.content for item in children[index + 1 : end])
-                )
+                contents.append("".join(item.content for item in children[index + 1 : end]))
     return contents
 
 
@@ -305,9 +284,7 @@ def _parse_block(
     warnings: list[Warning],
 ) -> list[Card]:
     block_tokens = _MARKDOWN.parse(source)
-    local_protected = {
-        line - first_line for line in protected_lines if first_line <= line
-    }
+    local_protected = {line - first_line for line in protected_lines if first_line <= line}
     _, comments = _semantic_mask(source, local_protected)
     # *clean* blanks comments in place so offsets match *source* for parsing;
     # card text is taken from *source* with the comment characters removed.
@@ -380,8 +357,7 @@ def _parse_block(
     # Tokens come from the original source; comments are blanked in *clean*
     # without shifting offsets, so compare against the same source text.
     valid_clozes = len(mark_contents) == len(clozes) and all(
-        content == source[cloze.start + 2 : cloze.end - 2]
-        for content, cloze in zip(mark_contents, clozes, strict=True)
+        content == source[cloze.start + 2 : cloze.end - 2] for content, cloze in zip(mark_contents, clozes, strict=True)
     )
     if mark_contents or clozes:
         if not valid_clozes:
@@ -413,12 +389,8 @@ def _parse_block(
                     cloze_index=index,
                     cloze_hint=None
                     if cloze.hint_start is None
-                    else _kept(
-                        source, in_comment, cloze.hint_start, cloze.hint_end - 1
-                    ),
-                    cloze_deleted=_kept(
-                        source, in_comment, cloze.start + 2, cloze.end - 2
-                    ),
+                    else _kept(source, in_comment, cloze.hint_start, cloze.hint_end - 1),
+                    cloze_deleted=_kept(source, in_comment, cloze.start + 2, cloze.end - 2),
                 )
             )
         return cards
@@ -434,9 +406,7 @@ def _parse_block(
         return []
 
     cards: list[Card] = []
-    candidate_lines = {
-        index for index, line in enumerate(semantic_lines) if "::" in line
-    }
+    candidate_lines = {index for index, line in enumerate(semantic_lines) if "::" in line}
     line_hidden: set[int] = set()
     block_hidden_for_lines = False
     for comment in hidden_comments:
@@ -462,11 +432,7 @@ def _parse_block(
         marker_start = line_start + marker_position
         front = _kept(source, in_comment, line_start, marker_start).strip()
         back = _kept(source, in_comment, marker_start + len(marker), line_end).strip()
-        line_comments = [
-            comment
-            for comment in comments
-            if comment.start < line_end and comment.end > line_start
-        ]
+        line_comments = [comment for comment in comments if comment.start < line_end and comment.end > line_start]
         hidden = block_hidden_for_lines or index in line_hidden
         pinned = _pinned_id(line_comments)
         if marker == ":::":
@@ -528,11 +494,7 @@ def _parse_file(root: Path, path: Path) -> tuple[list[Card], list[Warning]]:
     protected_lines = _protected_lines(tokens)
     warnings: list[Warning] = []
     for token in tokens:
-        if (
-            token.type == "heading_open"
-            and token.markup == "-"
-            and token.map is not None
-        ):
+        if token.type == "heading_open" and token.markup == "-" and token.map is not None:
             _warning(
                 warnings,
                 file,
@@ -540,9 +502,7 @@ def _parse_file(root: Path, path: Path) -> tuple[list[Card], list[Warning]]:
                 "missing blank line before thematic break",
             )
 
-    separators = [
-        token.map for token in tokens if token.type == "hr" and token.map is not None
-    ]
+    separators = [token.map for token in tokens if token.type == "hr" and token.map is not None]
     ranges: list[tuple[int, int]] = []
     start = 0
     for separator in separators:
@@ -578,11 +538,7 @@ def markdown_files(root: Path) -> list[Path]:
     """Return visible markdown files below *root* in repository order."""
     root = Path(root)
     return sorted(
-        (
-            path
-            for path in root.rglob("*.md")
-            if path.is_file() and not _is_hidden_path(path, root)
-        ),
+        (path for path in root.rglob("*.md") if path.is_file() and not _is_hidden_path(path, root)),
         key=lambda path: path.relative_to(root).as_posix(),
     )
 

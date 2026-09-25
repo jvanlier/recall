@@ -56,8 +56,5 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     for warning in result.warnings:
         print(f"{warning.file}:{warning.line}: {warning.message}")
-    print(
-        f"{len(result.decks)} decks, {len(result.cards)} cards, "
-        f"{len(result.warnings)} problems"
-    )
+    print(f"{len(result.decks)} decks, {len(result.cards)} cards, {len(result.warnings)} problems")
     return int(bool(result.warnings))

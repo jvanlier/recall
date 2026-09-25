@@ -58,12 +58,7 @@ def _parse_timestamp(value: object) -> datetime:
 
 
 def _format_timestamp(timestamp: datetime) -> str:
-    return (
-        timestamp.astimezone(UTC)
-        .replace(microsecond=0)
-        .isoformat()
-        .replace("+00:00", "Z")
-    )
+    return timestamp.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _review_from_record(record: dict[str, Any]) -> Review:
@@ -91,12 +86,18 @@ class ReviewLog:
         self.path = Path(path)
         self._lock = threading.Lock()
         self._pending_separators: list[bool] = []
+        self._pending_reviews: list[Review] = []
 
     @property
     def pending(self) -> int:
         """Return the number of reviews appended since the last commit mark."""
         with self._lock:
-            return len(self._pending_separators)
+            return len(self._pending_reviews)
+
+    def pending_reviews(self) -> list[Review]:
+        """Return reviews appended since the last commit mark."""
+        with self._lock:
+            return list(self._pending_reviews)
 
     def append(
         self,
@@ -147,6 +148,7 @@ class ReviewLog:
             for directory in directories_to_sync:
                 _fsync_directory(directory)
             self._pending_separators.append(needs_separator)
+            self._pending_reviews.append(review)
 
     def read(self) -> list[Review]:
         """Read valid review records, warning about malformed lines."""
@@ -163,8 +165,7 @@ class ReviewLog:
                         line = raw_line.decode("utf-8")
                     except UnicodeDecodeError as exc:
                         warnings.warn(
-                            f"malformed review log line {line_number}: "
-                            f"invalid UTF-8 ({exc})",
+                            f"malformed review log line {line_number}: invalid UTF-8 ({exc})",
                             UserWarning,
                             stacklevel=2,
                         )
@@ -180,8 +181,7 @@ class ReviewLog:
                         continue
                     if not isinstance(record, dict):
                         warnings.warn(
-                            f"malformed review log line {line_number}: "
-                            "expected an object",
+                            f"malformed review log line {line_number}: expected an object",
                             UserWarning,
                             stacklevel=2,
                         )
@@ -228,9 +228,17 @@ class ReviewLog:
                 file.flush()
                 os.fsync(file.fileno())
             self._pending_separators.pop()
+            self._pending_reviews.pop()
             return review
 
-    def mark_committed(self) -> None:
-        """Forget which reviews are eligible for undo after a successful sync."""
+    def mark_committed(self, count: int | None = None) -> None:
+        """Forget reviews made eligible for undo after a successful sync."""
         with self._lock:
-            self._pending_separators.clear()
+            if count is None:
+                self._pending_separators.clear()
+                self._pending_reviews.clear()
+                return
+            if count < 0 or count > len(self._pending_reviews):
+                raise ValueError("committed review count is out of range")
+            del self._pending_separators[:count]
+            del self._pending_reviews[:count]
