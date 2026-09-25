@@ -551,9 +551,19 @@ def _parse_file(root: Path, path: Path) -> tuple[list[Card], list[Warning]]:
     return cards, warnings
 
 
-def _is_hidden_path(path: Path, root: Path) -> bool:
-    relative = path.relative_to(root)
-    return any(part.startswith(".") for part in relative.parent.parts)
+def markdown_files(root: Path) -> list[Path]:
+    """Return visible markdown files below *root* in deterministic order."""
+    return sorted(
+        (
+            path
+            for path in root.rglob("*.md")
+            if path.is_file()
+            and not any(
+                part.startswith(".") for part in path.relative_to(root).parent.parts
+            )
+        ),
+        key=lambda path: path.relative_to(root).as_posix(),
+    )
 
 
 def load_repo(root: Path) -> ParseResult:
@@ -563,18 +573,9 @@ def load_repo(root: Path) -> ParseResult:
     line.  No repository state is written or inferred while parsing.
     """
     root = Path(root)
-    paths = sorted(
-        (
-            path
-            for path in root.rglob("*.md")
-            if path.is_file() and not _is_hidden_path(path, root)
-        ),
-        key=lambda path: path.relative_to(root).as_posix(),
-    )
-
     cards: list[Card] = []
     warnings: list[Warning] = []
-    for path in paths:
+    for path in markdown_files(root):
         file_cards, file_warnings = _parse_file(root, path)
         cards.extend(file_cards)
         warnings.extend(file_warnings)

@@ -35,7 +35,11 @@ for line in sys.stdin:
         summary = ""
         if isinstance(args, dict) and args:
             summary = next(
-                (args[key] for key in ("command", "path", "file_path", "query") if args.get(key)),
+                (
+                    args[key]
+                    for key in ("command", "path", "file_path", "query")
+                    if args.get(key)
+                ),
                 json.dumps(args),
             )
             summary = str(summary).replace("\n", " ")
@@ -47,7 +51,11 @@ for line in sys.stdin:
         tool = ev.get("toolName", "tool")
         emit(f"\n❌ [{tool} failed]\n", "\033[31m")
         result = ev.get("result") or {}
-        details = "\n".join(block["text"] for block in result.get("content", []) if block.get("type") == "text")
+        details = "\n".join(
+            block["text"]
+            for block in result.get("content", [])
+            if block.get("type") == "text"
+        )
         if not details and result:
             details = json.dumps(result)
         if details:
