@@ -135,6 +135,16 @@ class DeckNode:
     children: list[DeckNode] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class BrowseCard:
+    """A rendered card and the status shown on the browse page."""
+
+    card: Card
+    rendered: RenderedCard
+    status: str
+    due_date: str | None = None
+
+
 @dataclass(slots=True)
 class AppState:
     """Mutable application state shared by the routes."""
@@ -297,6 +307,37 @@ def _tree_nodes(scheduler: Scheduler, parse_result: ParseResult, now: datetime) 
 
 def _rendered_card(state: AppState, card: Card) -> RenderedCard:
     return render_card(card, state.settings.cards_dir)
+
+
+def _browse_cards(state: AppState, scope: str) -> list[BrowseCard]:
+    assert state.parse_result is not None and state.scheduler is not None
+    result: list[BrowseCard] = []
+    for card in state.parse_result.cards:
+        if not _in_scope(card, scope):
+            continue
+        if card.hidden:
+            status = "hidden"
+            due_date = None
+        else:
+            card_state = state.scheduler.card_state(card.id) if card.id is not None else None
+            status = "new" if card_state is None else "due"
+            due_date = None if card_state is None else card_state.due.astimezone().date().isoformat()
+        result.append(BrowseCard(card, _rendered_card(state, card), status, due_date))
+    return result
+
+
+def _browse_warnings(state: AppState, scope: str) -> list[AppWarning]:
+    if state.parse_result is None:
+        return _sync_warning_texts(state)
+    result = [
+        AppWarning(f"{warning.file}:{warning.line}: {warning.message}")
+        for warning in state.parse_result.warnings
+        if scope == "all"
+        or warning.file.with_suffix("").as_posix() == scope
+        or warning.file.with_suffix("").as_posix().startswith(f"{scope}/")
+    ]
+    result.extend(_sync_warning_texts(state))
+    return result
 
 
 def _apply_sync_result(state: AppState, result: SyncResult, *, update_pending: bool = True) -> None:
@@ -579,6 +620,31 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
                     "warnings": state.warnings,
                 },
             )
+
+    async def show_browse(request: Request, scope: str | None) -> HTMLResponse:
+        await _run_sync(state)
+        async with state.sync_gate:
+            await _wait_for_running_sync(state)
+            refresh_decks(state)
+            value = _validated_scope(state, scope)
+            cards = _browse_cards(state, value)
+            return templates.TemplateResponse(
+                request=request,
+                name="browse.html",
+                context={
+                    "cards": cards,
+                    "scope": value,
+                    "warnings": _browse_warnings(state, value),
+                },
+            )
+
+    @app.get("/browse", name="browse")
+    async def browse(request: Request) -> HTMLResponse:
+        return await show_browse(request, None)
+
+    @app.get("/browse/{scope:path}", name="browse_path")
+    async def browse_path(request: Request, scope: str) -> HTMLResponse:
+        return await show_browse(request, scope)
 
     async def show_review(request: Request, scope: str | None) -> HTMLResponse:
         async with state.sync_gate:

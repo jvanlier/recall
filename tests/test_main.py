@@ -1,6 +1,7 @@
 """Tests for the FastAPI review application."""
 
 import asyncio
+import json
 import re
 import time
 from pathlib import Path
@@ -34,6 +35,44 @@ def test_deck_list_counts_and_healthz(tmp_path: Path) -> None:
     assert "Deck" in response.text
     assert ">0</strong> due" in response.text
     assert ">1</strong> new" in response.text
+
+
+def test_browse_renders_fixture_cards_including_hidden_cards() -> None:
+    cards_dir = Path(__file__).parents[1] / "examples" / "cards"
+    with TestClient(create_app(Settings(cards_dir, git_sync=False))) as client:
+        response = client.get("/browse/Foundations")
+
+    assert response.status_code == 200
+    assert response.text.count('<article class="browse-card') == 9
+    assert "This card is hidden from the review queue." in response.text
+    assert "card-status-hidden" in response.text
+    assert '<span class="math inline">x^2</span>' in response.text
+    assert 'src="/media/images/recall.svg"' in response.text
+    assert "Foundations.md" in response.text
+
+
+def test_browse_links_are_available_for_decks_and_folders(tmp_path: Path) -> None:
+    (tmp_path / "Folder").mkdir()
+    (tmp_path / "Folder" / "Deck.md").write_text("Question::Answer\n", encoding="utf-8")
+
+    with TestClient(create_app(Settings(tmp_path, git_sync=False))) as client:
+        response = client.get("/")
+        folder = client.get("/browse/Folder")
+
+    assert 'href="/browse/Folder"' in response.text
+    assert folder.status_code == 200
+    assert "Question" in folder.text
+
+
+def test_manifest_is_served_as_installable_web_manifest(tmp_path: Path) -> None:
+    with TestClient(create_app(Settings(tmp_path, git_sync=False))) as client:
+        response = client.get("/manifest.webmanifest")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/manifest+json")
+    manifest = json.loads(response.text)
+    assert manifest["display"] == "standalone"
+    assert {icon["sizes"] for icon in manifest["icons"]} >= {"192x192", "512x512"}
 
 
 def test_timed_out_sync_refreshes_when_worker_finishes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

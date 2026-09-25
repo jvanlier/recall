@@ -92,8 +92,10 @@ h2 { margin-top: 0; }
 .deck-row a { min-width: 0; color: var(--text); text-decoration: none; }
 .deck-name { font-weight: 700; overflow-wrap: anywhere; }
 .folder-label { margin-left: .5rem; }
-.deck-counts { flex-shrink: 0; color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.deck-actions { display: flex; align-items: center; flex-shrink: 0; gap: .75rem; }
+.deck-counts { color: var(--muted); font-size: .9rem; white-space: nowrap; }
 .deck-counts strong:first-child { color: var(--accent); }
+.button-small { min-height: 2.25rem; padding: .35rem .7rem; font-size: .9rem; }
 .deck-children { margin: .35rem 0 .5rem 1.25rem; padding: 0; list-style: none; }
 .empty-state, .done-state {
   max-width: 42rem; margin: 2rem auto; padding: 2rem; border: 1px solid var(--border);
@@ -103,16 +105,45 @@ h2 { margin-top: 0; }
 .review-heading { margin-bottom: 1.25rem; }
 .back-link { color: var(--muted); text-decoration: none; }
 .review-card { min-height: 20rem; }
+.browse-page { max-width: 1100px; }
+.browse-heading { align-items: flex-end; }
+.browse-heading h1 { margin-top: .35rem; margin-bottom: 0; }
+.browse-card {
+  margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--border); border-radius: .7rem;
+  background: var(--surface);
+}
+.browse-card-hidden { border-style: dashed; }
+.browse-card-header {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: .9rem;
+}
+.browse-card-heading { min-width: 0; }
+.browse-card-heading .card-meta { margin-bottom: .2rem; text-transform: capitalize; }
+.card-status { font-weight: 700; }
+.card-status-hidden { color: var(--danger); }
+.card-status-new { color: var(--accent); }
+.card-id, .card-location { color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
+.card-id { display: block; }
+.card-location { flex-shrink: 0; margin: 0; }
+.browse-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.browse-side { min-width: 0; }
+.browse-side h2 { margin: 0 0 .4rem; color: var(--muted); font-size: .85rem; text-transform: uppercase; }
+.browse-side .card-content table { display: block; white-space: nowrap; }
+.browse-side .card-content pre { overflow-x: auto; white-space: pre; }
+.browse-side .card-content code { overflow-wrap: normal; }
+.browse-side .card-content img { display: block; }
+
 .card-meta { margin: 0 0 .75rem; }
 .card-content {
   max-width: 100%; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--border);
-  border-radius: .7rem; background: var(--surface); overflow-wrap: anywhere;
+  border-radius: .7rem; background: var(--surface); overflow-x: auto; overflow-wrap: anywhere;
 }
 .card-content.question { min-height: 8rem; }
 .card-content.answer { margin-top: .9rem; }
 .card-content pre, .card-content table { max-width: 100%; overflow: auto; }
 .card-content pre { padding: .8rem; border-radius: .4rem; background: var(--surface-muted); }
 .card-content img { max-width: 100%; height: auto; }
+.card-content iframe, .card-content video { max-width: 100%; }
+
 .card-content p:first-child { margin-top: 0; }
 .card-content p:last-child { margin-bottom: 0; }
 .button-answer { width: 100%; margin: 1rem 0; min-height: 3.25rem; }
@@ -143,9 +174,14 @@ h2 { margin-top: 0; }
   .site-header, .page { padding-left: 1rem; padding-right: 1rem; }
   .page-heading { align-items: stretch; flex-direction: column; }
   .review-all { width: 100%; }
-  .deck-row { align-items: flex-start; flex-direction: column; gap: .2rem; }
+  .deck-row { align-items: flex-start; flex-direction: column; gap: .5rem; }
+  .deck-actions { width: 100%; justify-content: space-between; }
   .deck-counts { white-space: normal; }
   .deck-children { margin-left: .7rem; }
+  .browse-heading { align-items: stretch; }
+  .browse-heading .button { width: 100%; }
+  .browse-card-header { align-items: flex-start; flex-direction: column; gap: .35rem; }
+  .browse-sides { grid-template-columns: minmax(0, 1fr); }
   .rating-form { gap: .35rem; }
   .rating { min-height: 4.5rem; padding: .35rem .15rem; }
   .review-actions { position: sticky; bottom: 0; margin-left: -1rem; margin-right: -1rem; padding: .7rem 1rem calc(.7rem + var(--safe-bottom)); background: color-mix(in srgb, var(--bg) 92%, transparent); }

@@ -26,7 +26,10 @@
         <span class="deck-name">{{ item.name }}</span>
         {% if item.kind == 'folder' %}<span class="folder-label">folder</span>{% endif %}
       </a>
-      <span class="deck-counts"><strong>{{ item.due }}</strong> due · <strong>{{ item.new }}</strong> new</span>
+      <span class="deck-actions">
+        <a class="button button-small" href="/browse/{{ item.path|urlencode }}">Browse</a>
+        <span class="deck-counts"><strong>{{ item.due }}</strong> due · <strong>{{ item.new }}</strong> new</span>
+      </span>
     </div>
     {% if item.children %}
     <ul class="deck-children">
