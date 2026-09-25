@@ -556,14 +556,10 @@ def _is_hidden_path(path: Path, root: Path) -> bool:
     return any(part.startswith(".") for part in relative.parent.parts)
 
 
-def load_repo(root: Path) -> ParseResult:
-    """Parse all visible markdown decks below *root*.
-
-    Files and cards are ordered by their repository-relative path and source
-    line.  No repository state is written or inferred while parsing.
-    """
+def markdown_files(root: Path) -> list[Path]:
+    """Return visible markdown files below *root* in repository order."""
     root = Path(root)
-    paths = sorted(
+    return sorted(
         (
             path
             for path in root.rglob("*.md")
@@ -571,6 +567,16 @@ def load_repo(root: Path) -> ParseResult:
         ),
         key=lambda path: path.relative_to(root).as_posix(),
     )
+
+
+def load_repo(root: Path) -> ParseResult:
+    """Parse all visible markdown decks below *root*.
+
+    Files and cards are ordered by their repository-relative path and source
+    line.  No repository state is written or inferred while parsing.
+    """
+    root = Path(root)
+    paths = markdown_files(root)
 
     cards: list[Card] = []
     warnings: list[Warning] = []
