@@ -1,4 +1,4 @@
-<section id="review-card" class="review-card" data-card-id="{{ card.id if card else '' }}">
+<section id="review-card" class="review-card" data-card-id="{{ card.id if card else '' }}" data-reviewed="{{ session.reviewed }}">
   {% if card %}
   <p class="card-meta">{{ card.deck }} · {{ card.kind }}</p>
   <article class="card-content question" aria-label="Question">

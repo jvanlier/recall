@@ -395,6 +395,7 @@ def _media_file(root: Path, raw_path: str) -> Path:
     if (
         any(part.startswith(".") for part in relative.parts[:-1])
         or not candidate.is_file()
+        or candidate.suffix.lower() not in _IMAGE_EXTENSIONS
     ):
         raise HTTPException(status_code=404, detail="media file not found")
     return candidate
@@ -559,7 +560,10 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
         media_type = (
             mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
         )
-        return FileResponse(file_path, media_type=media_type)
+        headers = {"X-Content-Type-Options": "nosniff"}
+        if file_path.suffix.lower() == ".svg":
+            headers["Content-Security-Policy"] = "sandbox"
+        return FileResponse(file_path, media_type=media_type, headers=headers)
 
     return app
 

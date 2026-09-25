@@ -52,6 +52,9 @@
 
   document.addEventListener("htmx:afterSwap", (event) => {
     renderMath(event.detail.target);
+    const reviewed = document.querySelector("#review-card")?.dataset?.reviewed;
+    const counter = document.querySelector("[data-session-count]");
+    if (reviewed !== undefined && counter) counter.textContent = `${reviewed} reviewed`;
     cardStarted();
   });
 
