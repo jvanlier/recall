@@ -10,11 +10,14 @@ Install Docker Engine and the Docker Compose plugin on the server. Run the
 following commands in a directory where the deployment will live:
 
 ```sh
-git clone git@github.com:jvanlier/recall-cards.git recall-cards
 mkdir -p secrets
-ssh-keygen -t ed25519 -f secrets/deploy_key -C recall@home-server
+ssh-keygen -t ed25519 -N "" -f secrets/deploy_key -C recall@home-server
 chmod 600 secrets/deploy_key
 ```
+
+This dedicated key has an empty passphrase because the container has no SSH
+agent to unlock it. Protect `secrets/deploy_key` and do not reuse it for
+interactive access.
 
 Add `secrets/deploy_key.pub` to
 [`jvanlier/recall-cards` → Settings → Deploy keys](https://github.com/jvanlier/recall-cards/settings/keys)
@@ -30,10 +33,21 @@ ssh-keygen -lf secrets/known_hosts
 chmod 644 secrets/known_hosts
 ```
 
-The cards directory and the two secret files must be readable by the
-container user (UID 1000), and the cards directory must be writable. For
-example, when the server account owns these files, no extra permissions are
-needed.
+Only after registering the deploy key and checking the fingerprint, clone the
+cards repository with that key:
+
+```sh
+GIT_SSH_COMMAND="ssh -i \"$PWD/secrets/deploy_key\" \
+  -o UserKnownHostsFile=\"$PWD/secrets/known_hosts\" \
+  -o StrictHostKeyChecking=yes" \
+  git clone git@github.com:jvanlier/recall-cards.git recall-cards
+```
+
+Compose runs as UID 1000 by default. The cards directory and both secret
+files must be readable by that UID, and the cards directory must be writable.
+If the server account uses another non-root UID/GID, set `RECALL_UID` and
+`RECALL_GID` in `.env` to `id -u` and `id -g`; the bind-mounted files must be
+owned or readable by those IDs. Keep the deploy key mode at `600`.
 
 Create a `.env` file next to `compose.yaml` and set the identity used for
 review commits. Keep this file and the `secrets/` directory private:
@@ -45,6 +59,9 @@ GIT_AUTHOR_NAME=Recall
 GIT_AUTHOR_EMAIL=recall@example.invalid
 GIT_COMMITTER_NAME=Recall
 GIT_COMMITTER_EMAIL=recall@example.invalid
+# Optional when the server account is not UID/GID 1000:
+# RECALL_UID=1001
+# RECALL_GID=1001
 ```
 
 Build and start the service:
@@ -58,17 +75,18 @@ It serves on `http://server:8000` by default. The health endpoint is
 
 ## Updates
 
-Pull the application changes, then either pull a published image or build the
-local image, and restart the service:
+CI builds the image but does not publish it, so this checkout uses a local
+build. Pull the application changes, rebuild, and restart the service:
 
 ```sh
 git pull --ff-only
-docker compose pull                 # when using a published image
-docker compose build --pull         # when building from this checkout
+docker compose build --pull
 docker compose up -d
 ```
 
-Do not run both `pull` and `build` unless you need both workflows.
+If a published image is configured later by adding an `image:` entry to
+`compose.yaml`, use `docker compose pull` instead of `docker compose build
+--pull`, then run `docker compose up -d`.
 
 ## Logs
 
