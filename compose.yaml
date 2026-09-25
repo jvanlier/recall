@@ -1,7 +1,5 @@
 services:
   recall:
-    # Keep these IDs non-root; set RECALL_UID/RECALL_GID for a different host user.
-    user: "${RECALL_UID:-1000}:${RECALL_GID:-1000}"
     build:
       context: .
       args:

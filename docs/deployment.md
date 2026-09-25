@@ -43,11 +43,18 @@ GIT_SSH_COMMAND="ssh -i \"$PWD/secrets/deploy_key\" \
   git clone git@github.com:jvanlier/recall-cards.git recall-cards
 ```
 
-Compose runs as UID 1000 by default. The cards directory and both secret
-files must be readable by that UID, and the cards directory must be writable.
-If the server account uses another non-root UID/GID, set `RECALL_UID` and
-`RECALL_GID` in `.env` to `id -u` and `id -g`; the bind-mounted files must be
-owned or readable by those IDs. Keep the deploy key mode at `600`.
+The image runs as the non-root user with UID 1000. The cards directory and
+both secret files must be readable by that UID, and the cards directory must
+be writable. If the server account uses another UID/GID, use `sudo` to give
+the container user ownership of the mounts before starting the service:
+
+```sh
+sudo chown -R 1000:1000 recall-cards
+sudo chown 1000:1000 secrets/deploy_key secrets/known_hosts
+chmod 600 secrets/deploy_key
+```
+
+Keep the deploy key mode at `600`.
 
 Create a `.env` file next to `compose.yaml` and set the identity used for
 review commits. Keep this file and the `secrets/` directory private:
@@ -59,9 +66,6 @@ GIT_AUTHOR_NAME=Recall
 GIT_AUTHOR_EMAIL=recall@example.invalid
 GIT_COMMITTER_NAME=Recall
 GIT_COMMITTER_EMAIL=recall@example.invalid
-# Optional when the server account is not UID/GID 1000:
-# RECALL_UID=1001
-# RECALL_GID=1001
 ```
 
 Build and start the service:
