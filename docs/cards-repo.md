@@ -19,11 +19,10 @@ cp -a /path/to/recall/examples/cards/. recall-cards/
 cd recall-cards
 ```
 
-Install Docker first; the offline link checker uses the `lychee-docker`
-hook. Then install the hooks once per clone:
+With `lychee` installed, install the hooks once per clone:
 
 ```sh
-uvx prek install
+prek install
 ```
 
 The starter kit includes `.gitattributes` so concurrent review-log appends
@@ -35,7 +34,7 @@ defaults. The sample decks and image are safe to replace.
 Edit decks in nvim, then run the hooks and commit your changes:
 
 ```sh
-uvx prek run --all-files
+prek run --all-files
 git add .
 git commit -m "cards: update Spanish vocabulary"
 git push

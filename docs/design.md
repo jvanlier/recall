@@ -215,9 +215,8 @@ because that's where the bugs would be.
 ## Tooling
 
 We use **prek** as the hook runner. It reads the same config as
-`pre-commit`. prek is not assumed to be installed: in the `recall` repo it
-is a uv dev dependency (`uv run prek install`, `uv run prek run`), and in
-the cards repo it runs through `uvx prek`.
+`pre-commit`. prek is assumed to be installed and is invoked directly in both
+repositories (`prek install`, `prek run`).
 
 The `recall` repo runs:
 
