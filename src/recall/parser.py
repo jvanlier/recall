@@ -25,7 +25,6 @@ class _Comment:
 class _Cloze:
     start: int
     end: int
-    text: str
     hint: str | None
     hint_end: int
 
@@ -171,7 +170,7 @@ def _find_clozes(source: str, mask: list[bool]) -> list[_Cloze]:
             return result
         end = visible.find("==", start + 2)
         while end != -1 and (
-            _is_escaped(source, end) or not visible[start + 2 : end].strip()
+            _is_escaped(source, end) or not source[start + 2 : end].strip()
         ):
             end = visible.find("==", end + 2)
         if end == -1:
@@ -190,7 +189,6 @@ def _find_clozes(source: str, mask: list[bool]) -> list[_Cloze]:
             _Cloze(
                 start=start,
                 end=end + 2,
-                text=source[start + 2 : end],
                 hint=hint,
                 hint_end=hint_end,
             )
@@ -351,8 +349,10 @@ def _parse_block(
 
     mark_contents = _mark_contents(block_tokens)
     clozes = _find_clozes(clean, mask)
+    # Tokens come from the original source; comments are blanked in *clean*
+    # without shifting offsets, so compare against the same source text.
     valid_clozes = len(mark_contents) == len(clozes) and all(
-        content == cloze.text
+        content == source[cloze.start + 2 : cloze.end - 2]
         for content, cloze in zip(mark_contents, clozes, strict=True)
     )
     if mark_contents or clozes:

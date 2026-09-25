@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline import StateInline
+
+_BLANK_LINE = re.compile(r"\n[ \t]*\n")
 
 
 def _is_escaped(source: str, position: int) -> bool:
@@ -25,20 +29,34 @@ def code_span_end(source: str, start: int) -> int | None:
         run_end += 1
     delimiter = source[start:run_end]
     close = source.find(delimiter, run_end)
-    if close == -1 or "\n\n" in source[run_end:close]:
+    if close == -1 or _BLANK_LINE.search(source, run_end, close):
         return None
     return close + len(delimiter)
 
 
 def math_span_end(source: str, start: int) -> int | None:
-    """Return the end of an inline dollar-math span, if present."""
+    """Return the end of an inline dollar-math span, if present.
+
+    Mirrors ``mdit_py_plugins`` inline dollar math as configured here: a single
+    ``$`` pairs with the next unescaped ``$`` (``double_inline`` is off), the
+    content must be non-empty, and inline spans never cross a blank line.
+    """
     if source[start] != "$" or _is_escaped(source, start):
         return None
-    delimiter = "$$" if source.startswith("$$", start) else "$"
-    close = source.find(delimiter, start + len(delimiter))
+    close = source.find("$", start + 1)
     while close != -1 and _is_escaped(source, close):
-        close = source.find(delimiter, close + len(delimiter))
-    return None if close == -1 else close + len(delimiter)
+        close = source.find("$", close + 1)
+    if close in (-1, start + 1) or _BLANK_LINE.search(source, start, close):
+        return None
+    return close + 1
+
+
+def comment_span_end(source: str, start: int) -> int | None:
+    """Return the end of a closed HTML comment, if *start* opens one."""
+    if not source.startswith("<!--", start):
+        return None
+    close = source.find("-->", start + 4)
+    return None if close == -1 else close + 3
 
 
 def _mark_rule(state: StateInline, silent: bool) -> bool:
@@ -67,6 +85,11 @@ def _mark_rule(state: StateInline, silent: bool) -> bool:
             if protected_end is not None:
                 end = protected_end
                 continue
+        if source[end] == "<":
+            protected_end = comment_span_end(source, end)
+            if protected_end is not None:
+                end = protected_end
+                continue
         end += 1
     else:
         return False
@@ -92,7 +115,8 @@ def mark_plugin(md: MarkdownIt) -> None:
     ``mdit-py-plugins`` does not expose its historical mark plugin in every
     supported release, so keep this small rule local.  Registering it in the
     inline ruler means code spans and dollar math consume their contents
-    before this rule sees them.
+    before this rule sees them; inside a span, code, math, and HTML comments
+    are skipped so their ``==`` never closes it.
     """
     md.inline.ruler.before("strikethrough", "mark", _mark_rule)
 

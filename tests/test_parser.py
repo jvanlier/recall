@@ -193,6 +193,41 @@ def test_clozes_can_contain_code_and_math_delimiters(tmp_path: Path) -> None:
     assert result.warnings == []
 
 
+@pytest.mark.parametrize("blank", ["\n", " \t\n"])
+def test_math_masking_stops_at_blank_lines(tmp_path: Path, blank: str) -> None:
+    result = parse_snippet(
+        tmp_path, f"Price $5\n{blank}question::answer\n{blank}Price $10\n"
+    )
+
+    assert [(card.front, card.back) for card in result.cards] == [
+        ("question", "answer")
+    ]
+    assert result.warnings == []
+
+
+@pytest.mark.parametrize("deletion", ["`code`", "$x$", "`a` $b$"])
+def test_clozes_may_contain_only_code_or_math(tmp_path: Path, deletion: str) -> None:
+    result = parse_snippet(tmp_path, f"Use =={deletion}== here.\n")
+
+    assert len(result.cards) == 1
+    assert result.cards[0].raw_text == f"Use {deletion} here."
+    assert result.warnings == []
+
+
+@pytest.mark.parametrize(
+    "snippet",
+    [
+        "The ==Aus<!-- ignore -->tralia== capital.\n",
+        "The ==Aus<!-- == -->tralia== capital.\n",
+    ],
+)
+def test_comments_inside_clozes_are_ignored(tmp_path: Path, snippet: str) -> None:
+    result = parse_snippet(tmp_path, snippet)
+
+    assert len(result.cards) == 1
+    assert result.warnings == []
+
+
 def test_blank_lines_are_kept_inside_card_sides(tmp_path: Path) -> None:
     result = parse_snippet(
         tmp_path,
