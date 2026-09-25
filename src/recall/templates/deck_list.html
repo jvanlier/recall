@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Decks · recall{% endblock %}
+{% block content %}
+<main class="page deck-page">
+  <div class="page-heading">
+    <div>
+      <p class="eyebrow">{{ tree|length }} top-level {% if tree|length == 1 %}deck{% else %}decks{% endif %}</p>
+      <h1>Choose a deck</h1>
+    </div>
+    <a class="button button-primary review-all" href="/review/{{ 'all'|urlencode }}">Review all</a>
+  </div>
+
+  {% if warnings %}
+  <details class="warning-banner">
+    <summary>{{ warnings|length }} warning{% if warnings|length != 1 %}s{% endif %}</summary>
+    <ul>
+      {% for warning in warnings %}<li>{{ warning.text }}</li>{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% macro node(item) %}
+  <li class="deck-node deck-node-{{ item.kind }}">
+    <div class="deck-row">
+      <a href="/review/{{ item.path|urlencode }}">
+        <span class="deck-name">{{ item.name }}</span>
+        {% if item.kind == 'folder' %}<span class="folder-label">folder</span>{% endif %}
+      </a>
+      <span class="deck-counts"><strong>{{ item.due }}</strong> due · <strong>{{ item.new }}</strong> new</span>
+    </div>
+    {% if item.children %}
+    <ul class="deck-children">
+      {% for child in item.children %}{{ node(child) }}{% endfor %}
+    </ul>
+    {% endif %}
+  </li>
+  {% endmacro %}
+
+  {% if tree %}
+  <ul class="deck-tree">{% for item in tree %}{{ node(item) }}{% endfor %}</ul>
+  {% else %}
+  <div class="empty-state"><h2>No cards yet</h2><p>Add a visible <code>.md</code> deck to the cards repository.</p></div>
+  {% endif %}
+</main>
+{% endblock %}

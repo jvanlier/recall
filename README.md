@@ -5,6 +5,20 @@ See the [design document](docs/design.md) for the project plan and card format.
 The [cards repository guide](docs/cards-repo.md) explains how to set up a
 private repository for your decks.
 
+## Run the web app
+
+Set `RECALL_CARDS_DIR` to a cards repository and start the server:
+
+```sh
+RECALL_CARDS_DIR=examples/cards uv run recall serve
+```
+
+`PORT` defaults to `8000` and `HOST` defaults to `0.0.0.0`. The review log is
+stored at `.recall/reviews.jsonl` in the cards repository.
+
+The app vendors htmx **2.0.7** and KaTeX **0.16.22** in
+`src/recall/static/`; it does not load front-end dependencies from a CDN.
+
 ## Development
 
 The project uses [uv](https://docs.astral.sh/uv/) with Python 3.14:
