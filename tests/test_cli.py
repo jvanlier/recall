@@ -80,6 +80,23 @@ $x \\text{<!-- marker -->} y$
     assert capsys.readouterr().out == "1 decks, 1 cards, 0 problems\n"
 
 
+def test_check_reports_math_after_valid_math_and_code(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "Deck.md").write_text(
+        """Question
+?
+$x`y$
+$oops
+`code`
+""",
+        encoding="utf-8",
+    )
+
+    assert main(["check", str(tmp_path)]) == 1
+    assert "Deck.md:4: unclosed math delimiter '$'" in capsys.readouterr().out
+
+
 def test_check_uses_current_directory_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

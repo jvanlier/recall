@@ -184,14 +184,19 @@ def _closing_delimiter(source: str, start: int, delimiter: str) -> int | None:
 
 
 def _math_warnings_in_text(file: Path, source: str, first_line: int) -> list[Warning]:
-    ignored = _ignored_mask(source)
     warnings: list[Warning] = []
     position = 0
     while position < len(source):
-        if ignored[position] or source[position] != "$":
-            position += 1
+        if source.startswith("<!--", position):
+            close = source.find("-->", position + 4)
+            position = len(source) if close == -1 else close + 3
             continue
-        if _is_escaped(source, position):
+        if source[position] == "`":
+            end = code_span_end(source, position)
+            if end is not None:
+                position = end
+                continue
+        if source[position] != "$" or _is_escaped(source, position):
             position += 1
             continue
 
