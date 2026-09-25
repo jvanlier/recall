@@ -15,6 +15,19 @@
   };
 
   const renderMath = (root) => {
+    const mathElements = root.matches?.(".math")
+      ? [root]
+      : [...root.querySelectorAll(".math")];
+    if (typeof katex === "object" && typeof katex.render === "function") {
+      mathElements.forEach((element) => {
+        if (element.dataset.katexRendered === "true") return;
+        katex.render(element.textContent || "", element, {
+          displayMode: element.classList.contains("block"),
+          throwOnError: false
+        });
+        element.dataset.katexRendered = "true";
+      });
+    }
     if (typeof renderMathInElement !== "function") return;
     renderMathInElement(root, {
       throwOnError: false,
@@ -44,7 +57,10 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-    if (["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName) || event.target.isContentEditable) return;
+    const focusedControl = event.target.closest?.(
+      "button, a, input, textarea, select, summary, [contenteditable='true']"
+    );
+    if (focusedControl) return;
     const card = document.querySelector("[data-card-id]");
     if (!card) return;
 

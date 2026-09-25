@@ -99,6 +99,8 @@ class ReviewSession:
     scope: str
     reviewed: int = 0
     current_card: str | None = None
+    presentation_token: str | None = None
+    completed: bool = False
 
 
 @dataclass(slots=True)
@@ -213,7 +215,7 @@ def _session_from_cookie(
 ) -> tuple[str, ReviewSession, bool]:
     token = request.cookies.get("recall_session")
     session = state.sessions.get(token) if token else None
-    if session is None or (replace and session.scope != scope):
+    if session is None or replace:
         token = secrets.token_urlsafe(24)
         session = ReviewSession(scope=scope)
         state.sessions[token] = session
@@ -224,6 +226,13 @@ def _session_from_cookie(
         )
     assert token is not None
     return token, session, False
+
+
+def _present(session: ReviewSession, card: Card | None) -> None:
+    """Record exactly which card presentation the browser is allowed to rate."""
+    session.current_card = card.id if card is not None else None
+    session.presentation_token = secrets.token_urlsafe(16) if card is not None else None
+    session.completed = card is None
 
 
 def _set_session_cookie(response, token: str, new: bool) -> None:
@@ -269,11 +278,19 @@ def _fragment_context(
     state: AppState, session: ReviewSession, card: Card | None
 ) -> dict[str, object]:
     if card is None:
-        return {"card": None, "rendered": None, "session": session}
+        return {
+            "card": None,
+            "rendered": None,
+            "session": session,
+            "presentation_token": None,
+            "pending": state.log.pending > 0,
+        }
     return {
         "card": card,
         "rendered": _rendered_card(state, card),
         "session": session,
+        "presentation_token": session.presentation_token,
+        "pending": state.log.pending > 0,
     }
 
 
@@ -456,7 +473,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
         value = _validated_scope(state, scope)
         token, session, new = _session_from_cookie(request, state, value, replace=True)
         card = state.scheduler.next_card(value, datetime.now(UTC))
-        session.current_card = card.id if card is not None else None
+        _present(session, card)
         response = _review_response(
             request, templates, state, session, card, full_page=True
         )
@@ -488,11 +505,17 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
         card = _card_by_id(state, card_id)
         if card is None or card.hidden or not _in_scope(card, submitted_scope):
             raise HTTPException(status_code=400, detail="unknown card ID for scope")
+        presentation = _required_string(payload, "presentation")
+        if (
+            session.current_card != card_id
+            or session.presentation_token != presentation
+        ):
+            raise HTTPException(status_code=400, detail="card is no longer presented")
 
         state.scheduler.record(card_id, rating, elapsed, datetime.now(UTC))
         session.reviewed += 1
         next_card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
-        session.current_card = next_card.id if next_card is not None else None
+        _present(session, next_card)
         response = _review_response(request, templates, state, session, next_card)
         _set_session_cookie(response, token, new)
         return response
@@ -512,7 +535,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
         card = _card_by_id(state, removed.card) if removed is not None else None
         if card is None or card.hidden or not _in_scope(card, submitted_scope):
             card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
-        session.current_card = card.id if card is not None else None
+        _present(session, card)
         response = _review_response(request, templates, state, session, card)
         _set_session_cookie(response, token, new)
         return response
@@ -525,12 +548,8 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
         token, session, new = _session_from_cookie(
             request, state, submitted_scope, replace=False
         )
-        session.current_card = None
-        response = templates.TemplateResponse(
-            request=request,
-            name="done_fragment.html",
-            context={"session": session},
-        )
+        _present(session, None)
+        response = _review_response(request, templates, state, session, None)
         _set_session_cookie(response, token, new)
         return response
 

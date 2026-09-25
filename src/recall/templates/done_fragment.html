@@ -2,6 +2,12 @@
   <p class="eyebrow">Session complete</p>
   <h1>Nice work.</h1>
   <p>You reviewed <strong>{{ session.reviewed }}</strong> card{% if session.reviewed != 1 %}s{% endif %}.</p>
+  {% if pending %}
+  <form class="done-undo" hx-post="{{ url_for('undo') }}" hx-target="#review-card" hx-swap="outerHTML">
+    <input type="hidden" name="scope" value="{{ session.scope }}">
+    <button class="button button-secondary" type="submit" data-undo>Undo last rating</button>
+  </form>
+  {% endif %}
   <div class="done-actions">
     <a class="button button-primary" href="{{ url_for('review_path', scope=session.scope) }}">Review again</a>
     <a class="button button-secondary" href="{{ url_for('deck_list') }}">Back to decks</a>
