@@ -127,7 +127,6 @@ h2 { margin-top: 0; }
 .browse-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .browse-side { min-width: 0; }
 .browse-side h2 { margin: 0 0 .4rem; color: var(--muted); font-size: .85rem; text-transform: uppercase; }
-.browse-side .card-content { height: 100%; }
 .browse-side .card-content table { display: block; white-space: nowrap; }
 .browse-side .card-content pre { overflow-x: auto; white-space: pre; }
 .browse-side .card-content code { overflow-wrap: normal; }
