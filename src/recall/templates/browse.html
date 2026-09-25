@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Browse {{ scope }} · recall{% endblock %}
+{% block header_actions %}
+<a class="header-link" href="{{ url_for('deck_list') }}">Decks</a>
+{% endblock %}
+{% block content %}
+<main class="page browse-page">
+  <div class="page-heading browse-heading">
+    <div>
+      <a class="back-link" href="{{ url_for('deck_list') }}">← Decks</a>
+      <p class="eyebrow">{{ cards|length }} card{% if cards|length != 1 %}s{% endif %}</p>
+      <h1>Browse {{ scope if scope != 'all' else 'all decks' }}</h1>
+    </div>
+    <a class="button button-primary" href="/review/{{ scope|urlencode }}">Review {{ scope if scope != 'all' else 'all' }}</a>
+  </div>
+
+  {% if warnings %}
+  <details class="warning-banner">
+    <summary>{{ warnings|length }} warning{% if warnings|length != 1 %}s{% endif %}</summary>
+    <ul>
+      {% for warning in warnings %}<li>{{ warning.text }}</li>{% endfor %}
+    </ul>
+  </details>
+  {% endif %}
+
+  {% if cards %}
+  <section class="browse-list" aria-label="Cards">
+    {% for item in cards %}
+    <article class="browse-card{% if item.status == 'hidden' %} browse-card-hidden{% endif %}">
+      <header class="browse-card-header">
+        <div class="browse-card-heading">
+          <p class="card-meta">{{ item.card.kind }} · <span class="card-status card-status-{{ item.status }}">{% if item.status == 'due' %}due {{ item.due_date }}{% else %}{{ item.status }}{% endif %}</span></p>
+          <code class="card-id">{{ item.card.id }}</code>
+        </div>
+        <p class="card-location"><code>{{ item.card.file }}:{{ item.card.line }}</code></p>
+      </header>
+      <div class="browse-sides">
+        <section class="browse-side">
+          <h2>Front</h2>
+          <div class="card-content">{{ item.rendered.front_html|safe }}</div>
+        </section>
+        <section class="browse-side">
+          <h2>Back</h2>
+          <div class="card-content">{{ item.rendered.back_html|safe }}</div>
+        </section>
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+  {% else %}
+  <div class="empty-state"><h2>No cards in this scope</h2><p>This deck or folder has no cards to browse.</p></div>
+  {% endif %}
+</main>
+{% endblock %}
