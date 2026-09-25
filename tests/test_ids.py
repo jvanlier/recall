@@ -87,6 +87,37 @@ def test_invalid_pinned_id_skips_card(tmp_path: Path) -> None:
     assert "invalid pinned ID" in result.warnings[0].message
 
 
+def test_pinned_front_keeps_id_when_front_is_reworded(tmp_path: Path) -> None:
+    deck = tmp_path / "Deck.md"
+    deck.write_text("Original front\n?\nBack\n<!-- id: pinned -->\n", encoding="utf-8")
+    original = load_repo(tmp_path).cards[0].id
+
+    deck.write_text("Reworded front\n?\nBack\n<!-- id: pinned -->\n", encoding="utf-8")
+
+    assert original == "pinned"
+    assert load_repo(tmp_path).cards[0].id == original
+
+
+def test_pinned_cloze_keeps_deleted_text_suffixes(tmp_path: Path) -> None:
+    result = parse_snippet(tmp_path, "==first== and ==second==\n<!-- id: cloze -->\n")
+
+    assert [card.id for card in result.cards] == [
+        "cloze:a7937b64",
+        "cloze:16367aac",
+    ]
+
+
+def test_hidden_cards_still_receive_their_stable_id(tmp_path: Path) -> None:
+    hidden = parse_snippet(tmp_path, "<!-- hide -->\nHidden\n?\nBack\n")
+    hidden_id = hidden.cards[0].id
+
+    visible = parse_snippet(tmp_path, "Hidden\n?\nBack\n")
+
+    assert hidden.cards[0].hidden is True
+    assert hidden_id is not None
+    assert visible.cards[0].id == hidden_id
+
+
 def test_cloze_ids_follow_deleted_text_not_position(tmp_path: Path) -> None:
     deck = tmp_path / "Deck.md"
     deck.write_text("The ==quick== brown ==fox==.\n", encoding="utf-8")

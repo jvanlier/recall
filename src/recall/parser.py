@@ -574,12 +574,9 @@ def load_repo(root: Path) -> ParseResult:
 
     cards: list[Card] = []
     warnings: list[Warning] = []
-    decks: list[str] = []
     for path in paths:
         file_cards, file_warnings = _parse_file(root, path)
-        if file_cards:
-            decks.append(path.relative_to(root).with_suffix("").as_posix())
-            cards.extend(file_cards)
+        cards.extend(file_cards)
         warnings.extend(file_warnings)
 
     cards = assign_ids(cards, warnings)
