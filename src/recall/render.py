@@ -126,9 +126,7 @@ class _RecallRenderer(RendererHTML):
         for token in tokens or []:
             if token.type == "recall_cloze":
                 replacement = _cloze_from_env(env, token.content)
-                result.append(
-                    replacement[1] if replacement is not None else token.content
-                )
+                result.append(replacement[1] if replacement is not None else token.content)
             else:
                 result.append(super().renderInlineAsText([token], options, env))
         return "".join(result)
@@ -158,9 +156,7 @@ def _markdown_renderer(card: Card, cards_root: Path | None):
 
     def render_cloze(tokens, index, _options, env):
         replacement = _cloze_from_env(env, tokens[index].content)
-        return (
-            replacement[0] if replacement is not None else escape(tokens[index].content)
-        )
+        return replacement[0] if replacement is not None else escape(tokens[index].content)
 
     renderer.rules["recall_cloze"] = cast(MethodType, render_cloze)
 
@@ -199,18 +195,12 @@ def _cloze_replacement(
         deleted = source[span.start + 2 : span.end - 2]
         if index == selected:
             selected_deleted = deleted
-            hint = (
-                source[span.hint_start : span.hint_end - 1]
-                if span.hint_start is not None
-                else "…"
-            )
+            hint = source[span.hint_start : span.hint_end - 1] if span.hint_start is not None else "…"
             selected_placeholder = f"{_CLOZE_MARKER_START}{index}{_CLOZE_MARKER_END}"
             collision = 0
             while selected_placeholder in source:
                 collision += 1
-                selected_placeholder = (
-                    f"{_CLOZE_MARKER_START}{index}-{'x' * collision}{_CLOZE_MARKER_END}"
-                )
+                selected_placeholder = f"{_CLOZE_MARKER_START}{index}-{'x' * collision}{_CLOZE_MARKER_END}"
             fallback = f"[{hint}]"
             replacements[selected_placeholder] = ("", fallback)
             transformed.append(source[position : span.start])
@@ -228,11 +218,7 @@ def _cloze_replacement(
         replacement = f'<mark class="cloze-answer">{inner}</mark>'
         alt = selected_deleted
     else:
-        replacement = (
-            '<span class="cloze">'
-            + escape(replacements[selected_placeholder][1])
-            + "</span>"
-        )
+        replacement = '<span class="cloze">' + escape(replacements[selected_placeholder][1]) + "</span>"
         alt = replacements[selected_placeholder][1]
     replacements[selected_placeholder] = (replacement, alt)
     return md.renderer.render(tokens, md.options, environment)

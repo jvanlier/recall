@@ -65,9 +65,7 @@ def test_front_edit_and_move_change_only_when_expected(tmp_path: Path) -> None:
     deck.rename(tmp_path / "Nested.md")
     assert load_repo(tmp_path).cards[0].id == original
 
-    (tmp_path / "Nested.md").write_text(
-        "A new question\n?\nThe answer\n", encoding="utf-8"
-    )
+    (tmp_path / "Nested.md").write_text("A new question\n?\nThe answer\n", encoding="utf-8")
     assert load_repo(tmp_path).cards[0].id != original
 
 

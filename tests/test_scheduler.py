@@ -61,9 +61,7 @@ def test_new_card_limit_is_global_across_decks(tmp_path: Path) -> None:
     assert scheduler.counts("B", NOW) == (0, 0)
 
 
-def test_day_boundary_uses_four_am(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_day_boundary_uses_four_am(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TZ", "UTC")
     result = parsed_repo(tmp_path, "one::1\ntwo::2\n")
     first, second = result.cards

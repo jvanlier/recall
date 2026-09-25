@@ -50,11 +50,7 @@ def _ignored_mask(source: str, *, include_math: bool = False) -> list[bool]:
                 mask[position:end] = [True] * (end - position)
                 position = end
                 continue
-        if (
-            include_math
-            and source[position] == "$"
-            and not _is_escaped(source, position)
-        ):
+        if include_math and source[position] == "$" and not _is_escaped(source, position):
             end = math_span_end(source, position)
             if end is not None:
                 mask[position:end] = [True] * (end - position)
@@ -100,17 +96,9 @@ def _image_warnings(root: Path, path: Path) -> list[Warning]:
             if not isinstance(src, str):
                 continue
 
-            position = (
-                marker_positions[marker_index]
-                if marker_index < len(marker_positions)
-                else -1
-            )
+            position = marker_positions[marker_index] if marker_index < len(marker_positions) else -1
             marker_index += 1
-            line = (
-                first_line + token.content.count("\n", 0, position)
-                if position != -1
-                else first_line
-            )
+            line = first_line + token.content.count("\n", 0, position) if position != -1 else first_line
             warnings.extend(
                 _check_image_path(
                     root,

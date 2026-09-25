@@ -195,13 +195,9 @@ def test_clozes_can_contain_code_and_math_delimiters(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("blank", ["\n", " \t\n"])
 def test_math_masking_stops_at_blank_lines(tmp_path: Path, blank: str) -> None:
-    result = parse_snippet(
-        tmp_path, f"Price $5\n{blank}question::answer\n{blank}Price $10\n"
-    )
+    result = parse_snippet(tmp_path, f"Price $5\n{blank}question::answer\n{blank}Price $10\n")
 
-    assert [(card.front, card.back) for card in result.cards] == [
-        ("question", "answer")
-    ]
+    assert [(card.front, card.back) for card in result.cards] == [("question", "answer")]
     assert result.warnings == []
 
 
@@ -242,14 +238,10 @@ def test_comments_inside_clozes_are_ignored(tmp_path: Path, snippet: str) -> Non
         ),
     ],
 )
-def test_comments_are_removed_from_card_text(
-    tmp_path: Path, snippet: str, front: str, back: str
-) -> None:
+def test_comments_are_removed_from_card_text(tmp_path: Path, snippet: str, front: str, back: str) -> None:
     result = parse_snippet(tmp_path, snippet)
 
-    assert [(card.front, card.back, card.raw_text) for card in result.cards] == [
-        (front, back, front)
-    ]
+    assert [(card.front, card.back, card.raw_text) for card in result.cards] == [(front, back, front)]
     assert result.warnings == []
 
 
@@ -313,15 +305,11 @@ def test_commented_out_cards_and_nested_dot_directories_are_ignored(
 ) -> None:
     (tmp_path / ".recall").mkdir()
     (tmp_path / ".recall" / "hidden.md").write_text("x\n?\ny\n", encoding="utf-8")
-    (tmp_path / "comment.md").write_text(
-        "<!--\nnot a card\n?\nnot an answer\n-->\n", encoding="utf-8"
-    )
+    (tmp_path / "comment.md").write_text("<!--\nnot a card\n?\nnot an answer\n-->\n", encoding="utf-8")
     (tmp_path / "visible.md").write_text("x\n?\ny\n", encoding="utf-8")
 
     result = load_repo(tmp_path)
 
     assert result.decks == ["visible"]
-    assert [(card.file, card.front) for card in result.cards] == [
-        (Path("visible.md"), "x")
-    ]
+    assert [(card.file, card.front) for card in result.cards] == [(Path("visible.md"), "x")]
     assert result.warnings == []

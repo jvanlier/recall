@@ -254,9 +254,7 @@ class Scheduler:
 
     @staticmethod
     def _fsrs_id(card_id: str) -> int:
-        return int.from_bytes(
-            hashlib.sha256(card_id.encode("utf-8")).digest()[:8], "big"
-        )
+        return int.from_bytes(hashlib.sha256(card_id.encode("utf-8")).digest()[:8], "big")
 
     def _new_state(self, card_id: str, at: datetime) -> FsrsCard:
         return FsrsCard(card_id=self._fsrs_id(card_id), due=at)
@@ -286,9 +284,7 @@ class Scheduler:
             reviews = self.log.read() if self.log is not None else ()
         self._parse_result = parse_result
         self._cards = list(parse_result.cards)
-        self._cards_by_id = {
-            card.id: card for card in self._cards if card.id is not None
-        }
+        self._cards_by_id = {card.id: card for card in self._cards if card.id is not None}
         self._reviews = list(reviews)
         self._reviews_by_card = {card_id: [] for card_id in self._cards_by_id}
         for review in self._reviews:
@@ -319,22 +315,14 @@ class Scheduler:
     ) -> tuple[list[Card], list[Card], list[Card], list[Card]]:
         now_utc = _utc(now)
         day_start, day_end = _day_bounds(now, self.config.day_start_hour)
-        today_reviews = {
-            review.card
-            for review in self._reviews
-            if day_start <= _utc(review.t) <= now_utc < day_end
-        }
+        today_reviews = {review.card for review in self._reviews if day_start <= _utc(review.t) <= now_utc < day_end}
         reviewed_siblings = {
-            card.sibling_key
-            for card in self._cards
-            if card.id in today_reviews and card.sibling_key is not None
+            card.sibling_key for card in self._cards if card.id in today_reviews and card.sibling_key is not None
         }
 
         def buried(card: Card) -> bool:
             return (
-                card.id not in today_reviews
-                and card.sibling_key is not None
-                and card.sibling_key in reviewed_siblings
+                card.id not in today_reviews and card.sibling_key is not None and card.sibling_key in reviewed_siblings
             )
 
         learning: list[Card] = []
@@ -355,11 +343,7 @@ class Scheduler:
                     learning.append(card)
                 elif state.due <= learning_cutoff:
                     future_learning.append(card)
-            elif (
-                state.state == FsrsState.Review
-                and state.due < day_end
-                and not buried(card)
-            ):
+            elif state.state == FsrsState.Review and state.due < day_end and not buried(card):
                 review.append(card)
 
         first_reviews = {

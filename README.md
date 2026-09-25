@@ -14,7 +14,9 @@ RECALL_CARDS_DIR=examples/cards uv run recall serve
 ```
 
 `PORT` defaults to `8000` and `HOST` defaults to `0.0.0.0`. The review log is
-stored at `.recall/reviews.jsonl` in the cards repository.
+stored at `.recall/reviews.jsonl` in the cards repository. Git sync runs on deck
+loads, when a session ends, and in the background; set `RECALL_GIT_SYNC=0` to
+disable it for local development.
 
 The app vendors htmx **2.0.7** and KaTeX **0.16.22** in
 `src/recall/static/`; it does not load front-end dependencies from a CDN.

@@ -18,8 +18,7 @@ def test_round_trip_of_append_and_read(tmp_path: Path) -> None:
     log.append("card-id:fwd", timestamp, 3, 4200)
 
     assert path.read_text(encoding="utf-8") == (
-        '{"card": "card-id:fwd", "t": "2026-06-10T10:12:03Z", '
-        '"rating": 3, "ms": 4200}\n'
+        '{"card": "card-id:fwd", "t": "2026-06-10T10:12:03Z", "rating": 3, "ms": 4200}\n'
     )
     assert log.read() == [
         Review(
@@ -65,9 +64,7 @@ def test_append_fsyncs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_undo_when_pending_is_zero_changes_nothing(tmp_path: Path) -> None:
     path = tmp_path / "reviews.jsonl"
-    path.write_text(
-        '{"card": "card", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}\n'
-    )
+    path.write_text('{"card": "card", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}\n')
     log = ReviewLog(path)
     before = path.read_bytes()
 
@@ -89,17 +86,13 @@ def test_undo_after_append(tmp_path: Path) -> None:
 
 def test_undo_restores_file_without_trailing_newline(tmp_path: Path) -> None:
     path = tmp_path / "reviews.jsonl"
-    path.write_bytes(
-        b'{"card": "old", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}'
-    )
+    path.write_bytes(b'{"card": "old", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}')
     log = ReviewLog(path)
     log.append("new", datetime(2026, 6, 10, 8, 12, 4, tzinfo=UTC), 4, 2)
 
     log.undo_last()
 
-    assert path.read_bytes() == (
-        b'{"card": "old", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}'
-    )
+    assert path.read_bytes() == (b'{"card": "old", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}')
 
 
 def test_malformed_and_unknown_lines(tmp_path: Path) -> None:
@@ -108,10 +101,7 @@ def test_malformed_and_unknown_lines(tmp_path: Path) -> None:
         "\n".join(
             [
                 '{"relink": "old", "to": "new"}',
-                (
-                    '{"card": "valid", "t": "2026-06-10T08:12:03Z", '
-                    '"rating": 4, "ms": 0, "future": true}'
-                ),
+                ('{"card": "valid", "t": "2026-06-10T08:12:03Z", "rating": 4, "ms": 0, "future": true}'),
                 "not json",
                 '{"card": "invalid", "t": "2026-06-10T08:12:03", "rating": 3, "ms": 1}',
             ]
@@ -123,16 +113,12 @@ def test_malformed_and_unknown_lines(tmp_path: Path) -> None:
     with pytest.warns(UserWarning, match=r"line 3"):
         reviews = ReviewLog(path).read()
 
-    assert reviews == [
-        Review("valid", datetime(2026, 6, 10, 8, 12, 3, tzinfo=UTC), 4, 0)
-    ]
+    assert reviews == [Review("valid", datetime(2026, 6, 10, 8, 12, 3, tzinfo=UTC), 4, 0)]
 
 
 def test_invalid_utf8_is_warned_and_skipped(tmp_path: Path) -> None:
     path = tmp_path / "reviews.jsonl"
-    path.write_bytes(
-        b'{"card": "broken\xff", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}\n'
-    )
+    path.write_bytes(b'{"card": "broken\xff", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": 1}\n')
 
     with pytest.warns(UserWarning, match=r"line 1.*UTF-8"):
         assert ReviewLog(path).read() == []
@@ -141,9 +127,7 @@ def test_invalid_utf8_is_warned_and_skipped(tmp_path: Path) -> None:
 def test_huge_integer_is_warned_and_skipped(tmp_path: Path) -> None:
     path = tmp_path / "reviews.jsonl"
     path.write_text(
-        '{"card": "card", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": '
-        + "9" * 5000
-        + "}\n",
+        '{"card": "card", "t": "2026-06-10T08:12:03Z", "rating": 3, "ms": ' + "9" * 5000 + "}\n",
         encoding="utf-8",
     )
 
@@ -158,9 +142,7 @@ def test_file_without_trailing_newline(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    assert ReviewLog(path).read() == [
-        Review("card", datetime(2026, 6, 10, 8, 12, 3, tzinfo=UTC), 3, 4200)
-    ]
+    assert ReviewLog(path).read() == [Review("card", datetime(2026, 6, 10, 8, 12, 3, tzinfo=UTC), 3, 4200)]
 
 
 def test_validation_at_append_boundary(tmp_path: Path) -> None:
