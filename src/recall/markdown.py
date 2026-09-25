@@ -121,10 +121,10 @@ def mark_plugin(md: MarkdownIt) -> None:
     md.inline.ruler.before("strikethrough", "mark", _mark_rule)
 
 
-def markdown_it() -> MarkdownIt:
+def markdown_it(*, html: bool = True) -> MarkdownIt:
     """Return the configured Markdown-it instance used for card syntax."""
     from mdit_py_plugins.dollarmath import dollarmath_plugin
 
     return (
-        MarkdownIt("commonmark", {"html": True}).use(mark_plugin).use(dollarmath_plugin)
+        MarkdownIt("commonmark", {"html": html}).use(mark_plugin).use(dollarmath_plugin)
     )

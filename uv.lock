@@ -144,6 +144,7 @@ dependencies = [
     { name = "fsrs" },
     { name = "markdown-it-py" },
     { name = "mdit-py-plugins" },
+    { name = "pygments" },
 ]
 
 [package.dev-dependencies]
@@ -160,6 +161,7 @@ requires-dist = [
     { name = "fsrs", specifier = ">=6,<7" },
     { name = "markdown-it-py", specifier = ">=4.2.0" },
     { name = "mdit-py-plugins", specifier = ">=0.6.1" },
+    { name = "pygments", specifier = ">=2.19" },
 ]
 
 [package.metadata.requires-dev]
