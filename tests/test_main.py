@@ -1,11 +1,16 @@
 """Tests for the FastAPI review application."""
 
+import asyncio
 import re
+import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
-from recall.main import Settings, create_app
+from recall.gitsync import GitSync, SyncResult
+from recall.log import ReviewLog
+from recall.main import AppState, Settings, _run_sync, create_app
 from recall.parser import load_repo
 
 
@@ -29,6 +34,61 @@ def test_deck_list_counts_and_healthz(tmp_path: Path) -> None:
     assert "Deck" in response.text
     assert ">0</strong> due" in response.text
     assert ">1</strong> new" in response.text
+
+
+def test_timed_out_sync_refreshes_when_worker_finishes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / "Deck.md").write_text("Question::Answer\n", encoding="utf-8")
+    settings = Settings(tmp_path, git_sync_timeout=0.01)
+    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
+    syncer = GitSync(tmp_path, log)
+    state = AppState(settings=settings, log=log, git_sync=syncer)
+
+    def slow_sync() -> SyncResult:
+        time.sleep(0.05)
+        return SyncResult(head_changed=True)
+
+    monkeypatch.setattr(syncer, "sync", slow_sync)
+
+    async def exercise() -> None:
+        result = await _run_sync(state, force=True)
+        assert result is not None and result.error is not None
+        await asyncio.sleep(0.1)
+
+    asyncio.run(exercise())
+
+    assert state.sync_error is None
+    assert state.scheduler is not None
+
+
+def test_final_rating_triggers_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    (tmp_path / ".recall").mkdir()
+    (tmp_path / ".recall" / "config.toml").write_text("learn_ahead_minutes = 0\n", encoding="utf-8")
+    app = app_for(tmp_path)
+    card = load_repo(tmp_path).cards[0]
+    calls: list[bool] = []
+
+    def sync() -> SyncResult:
+        calls.append(True)
+        return SyncResult()
+
+    with TestClient(app) as client:
+        syncer = app.state.recall.git_sync
+        assert syncer is not None
+        monkeypatch.setattr(syncer, "sync", sync)
+        response = client.get("/review/Deck")
+        response = client.post(
+            "/review/rate",
+            data={
+                "card": card.id,
+                "scope": "Deck",
+                "rating": "3",
+                "ms": "42",
+                "presentation": presentation_token(response.text),
+            },
+        )
+        assert "Session complete" in response.text
+
+    assert calls
 
 
 def test_review_cycle_appends_to_log(tmp_path: Path) -> None:

@@ -150,6 +150,8 @@ class AppState:
     sync_warnings: list[str] = field(default_factory=list)
     sync_error: str | None = None
     last_sync_attempt: float = 0.0
+    sync_gate: asyncio.Lock = field(default_factory=asyncio.Lock)
+    sync_task: asyncio.Task[SyncResult] | None = None
     sessions: dict[str, ReviewSession] = field(default_factory=dict)
 
 
@@ -296,32 +298,71 @@ def _apply_sync_result(state: AppState, result: SyncResult) -> None:
     state.warnings = [*state.parse_warnings, *_sync_warning_texts(state)]
 
 
-async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | None:
-    """Run git away from the event loop, subject to the deck-load interval."""
-    syncer = state.git_sync
-    if syncer is None:
-        return None
-    now = time.monotonic()
-    if not force and now - state.last_sync_attempt < 60:
-        return None
-    state.last_sync_attempt = now
+def _complete_sync_task(state: AppState, task: asyncio.Task[SyncResult]) -> SyncResult:
     try:
-        result = await asyncio.wait_for(asyncio.to_thread(syncer.sync), timeout=state.settings.git_sync_timeout)
-    except TimeoutError:
-        _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
-        result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
+        result = task.result()
+    except Exception as error:
+        _LOGGER.warning("git sync failed: %s", error)
+        result = SyncResult(error=str(error))
+    state.sync_task = None
     _apply_sync_result(state, result)
     if result.head_changed:
         refresh_decks(state, force=True)
     return result
 
 
+async def _finish_sync_task(state: AppState, task: asyncio.Task[SyncResult]) -> None:
+    async with state.sync_gate:
+        if state.sync_task is task:
+            _complete_sync_task(state, task)
+
+
+async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | None:
+    """Run git away from the event loop, subject to the deck-load interval."""
+    async with state.sync_gate:
+        syncer = state.git_sync
+        if syncer is None:
+            return None
+
+        existing = state.sync_task
+        if existing is not None:
+            if not force and not existing.done():
+                return None
+            try:
+                await asyncio.wait_for(asyncio.shield(existing), timeout=state.settings.git_sync_timeout)
+            except TimeoutError:
+                _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
+                result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
+                _apply_sync_result(state, result)
+                return result
+            return _complete_sync_task(state, existing)
+
+        now = time.monotonic()
+        if not force and now - state.last_sync_attempt < 60:
+            return None
+        state.last_sync_attempt = now
+        task = asyncio.create_task(asyncio.to_thread(syncer.sync))
+        state.sync_task = task
+        task.add_done_callback(lambda completed: asyncio.create_task(_finish_sync_task(state, completed)))
+        try:
+            await asyncio.wait_for(asyncio.shield(task), timeout=state.settings.git_sync_timeout)
+        except TimeoutError:
+            _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
+            result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
+            _apply_sync_result(state, result)
+            return result
+        return _complete_sync_task(state, task)
+
+
 async def _idle_sync_loop(state: AppState) -> None:
     while True:
         await asyncio.sleep(30)
-        if state.git_sync is None or state.log.pending == 0:
+        if state.git_sync is None:
             continue
-        reviews = state.log.read()
+        async with state.sync_gate:
+            if state.log.pending == 0:
+                continue
+            reviews = state.log.read()
         if not reviews:
             continue
         last_review = max(review.t for review in reviews)
@@ -513,28 +554,30 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
     @app.get("/", name="deck_list")
     async def deck_list(request: Request) -> HTMLResponse:
         await _run_sync(state)
-        refresh_decks(state)
-        assert state.parse_result is not None and state.scheduler is not None
-        now = datetime.now(UTC)
-        return templates.TemplateResponse(
-            request=request,
-            name="deck_list.html",
-            context={
-                "tree": _tree_nodes(state.scheduler, state.parse_result, now),
-                "warnings": state.warnings,
-            },
-        )
+        async with state.sync_gate:
+            refresh_decks(state)
+            assert state.parse_result is not None and state.scheduler is not None
+            now = datetime.now(UTC)
+            return templates.TemplateResponse(
+                request=request,
+                name="deck_list.html",
+                context={
+                    "tree": _tree_nodes(state.scheduler, state.parse_result, now),
+                    "warnings": state.warnings,
+                },
+            )
 
     async def show_review(request: Request, scope: str | None) -> HTMLResponse:
-        refresh_decks(state)
-        assert state.scheduler is not None
-        value = _validated_scope(state, scope)
-        token, session, new = _session_from_cookie(request, state, value, replace=True)
-        card = state.scheduler.next_card(value, datetime.now(UTC))
-        _present(session, card)
-        response = _review_response(request, templates, state, session, card, full_page=True)
-        _set_session_cookie(response, token, new)
-        return response
+        async with state.sync_gate:
+            refresh_decks(state)
+            assert state.scheduler is not None
+            value = _validated_scope(state, scope)
+            token, session, new = _session_from_cookie(request, state, value, replace=True)
+            card = state.scheduler.next_card(value, datetime.now(UTC))
+            _present(session, card)
+            response = _review_response(request, templates, state, session, card, full_page=True)
+            _set_session_cookie(response, token, new)
+            return response
 
     @app.get("/review", name="review")
     async def review(request: Request, scope: str | None = None) -> HTMLResponse:
@@ -546,56 +589,63 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
 
     @app.post("/review/rate", name="rate")
     async def rate(request: Request):
-        refresh_decks(state)
-        assert state.scheduler is not None
         payload = await _request_payload(request)
-        card_key = "card" if "card" in payload else "card_id"
-        elapsed_key = "ms" if "ms" in payload else "elapsed_ms"
-        card_id = _required_string(payload, card_key)
-        submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
-        rating = _required_integer(payload, "rating", minimum=1, maximum=4)
-        elapsed = _required_integer(payload, elapsed_key, minimum=0)
-        token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
-        card = _card_by_id(state, card_id)
-        if card is None or card.hidden or not _in_scope(card, submitted_scope):
-            raise HTTPException(status_code=400, detail="unknown card ID for scope")
-        presentation = _required_string(payload, "presentation")
-        if session.current_card != card_id or session.presentation_token != presentation:
-            raise HTTPException(status_code=400, detail="card is no longer presented")
+        async with state.sync_gate:
+            refresh_decks(state)
+            assert state.scheduler is not None
+            card_key = "card" if "card" in payload else "card_id"
+            elapsed_key = "ms" if "ms" in payload else "elapsed_ms"
+            card_id = _required_string(payload, card_key)
+            submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
+            rating = _required_integer(payload, "rating", minimum=1, maximum=4)
+            elapsed = _required_integer(payload, elapsed_key, minimum=0)
+            token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
+            card = _card_by_id(state, card_id)
+            if card is None or card.hidden or not _in_scope(card, submitted_scope):
+                raise HTTPException(status_code=400, detail="unknown card ID for scope")
+            presentation = _required_string(payload, "presentation")
+            if session.current_card != card_id or session.presentation_token != presentation:
+                raise HTTPException(status_code=400, detail="card is no longer presented")
 
-        state.scheduler.record(card_id, rating, elapsed, datetime.now(UTC))
-        session.reviewed += 1
-        next_card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
-        _present(session, next_card)
+            state.scheduler.record(card_id, rating, elapsed, datetime.now(UTC))
+            session.reviewed += 1
+            next_card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
+            _present(session, next_card)
+
+        if next_card is None:
+            await _run_sync(state, force=True)
         response = _review_response(request, templates, state, session, next_card)
         _set_session_cookie(response, token, new)
         return response
 
     @app.post("/review/undo", name="undo")
     async def undo(request: Request):
-        refresh_decks(state)
-        assert state.scheduler is not None
         payload = await _request_payload(request)
-        submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
-        token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
-        removed = state.scheduler.undo()
-        if removed is not None:
-            session.reviewed = max(0, session.reviewed - 1)
-        card = _card_by_id(state, removed.card) if removed is not None else None
-        if card is None or card.hidden or not _in_scope(card, submitted_scope):
-            card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
-        _present(session, card)
+        async with state.sync_gate:
+            refresh_decks(state)
+            assert state.scheduler is not None
+            submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
+            token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
+            removed = state.scheduler.undo()
+            if removed is not None:
+                session.reviewed = max(0, session.reviewed - 1)
+            card = _card_by_id(state, removed.card) if removed is not None else None
+            if card is None or card.hidden or not _in_scope(card, submitted_scope):
+                card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
+            _present(session, card)
+
         response = _review_response(request, templates, state, session, card)
         _set_session_cookie(response, token, new)
         return response
 
     @app.post("/review/done", name="done")
     async def done(request: Request):
-        refresh_decks(state)
         payload = await _request_payload(request)
-        submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
-        token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
-        _present(session, None)
+        async with state.sync_gate:
+            refresh_decks(state)
+            submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
+            token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
+            _present(session, None)
         await _run_sync(state, force=True)
         response = _review_response(request, templates, state, session, None)
         _set_session_cookie(response, token, new)

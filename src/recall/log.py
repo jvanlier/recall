@@ -6,6 +6,7 @@ import json
 import os
 import threading
 import warnings
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -84,9 +85,15 @@ class ReviewLog:
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._pending_separators: list[bool] = []
         self._pending_reviews: list[Review] = []
+
+    @contextmanager
+    def exclusive(self):
+        """Hold the log lock across a filesystem operation such as git sync."""
+        with self._lock:
+            yield
 
     @property
     def pending(self) -> int:

@@ -141,6 +141,10 @@ class GitSync:
 
     def sync(self) -> SyncResult:
         """Run one serialised commit, pull, and push operation."""
+        with self.log.exclusive():
+            return self._sync_locked()
+
+    def _sync_locked(self) -> SyncResult:
         with self._lock:
             warnings = self._warnings()
             try:
