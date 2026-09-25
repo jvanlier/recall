@@ -6,8 +6,16 @@ back to that repository.
 
 ## First deployment
 
-Install Docker Engine and the Docker Compose plugin on the server. Run the
-following commands in a directory where the deployment will live:
+Install Docker Engine and the Docker Compose plugin on the server. Clone the
+application repository and enter its directory:
+
+```sh
+git clone git@github.com:jvanlier/recall.git recall
+cd recall
+```
+
+If the application repository is already checked out, just enter that
+checkout. Then run the following commands from its root:
 
 ```sh
 mkdir -p secrets
@@ -51,7 +59,7 @@ the container user ownership of the mounts before starting the service:
 ```sh
 sudo chown -R 1000:1000 recall-cards
 sudo chown 1000:1000 secrets/deploy_key secrets/known_hosts
-chmod 600 secrets/deploy_key
+sudo chmod 600 secrets/deploy_key
 ```
 
 Keep the deploy key mode at `600`.
