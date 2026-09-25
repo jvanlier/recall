@@ -148,8 +148,8 @@ an `<!-- id: ... -->`. Use `<!-- hide -->` for those.
 
 ## Checking your cards
 
-The cards repo runs these pre-commit hooks via prek (`uvx prek install`
-once per clone; prek itself need not be installed):
+The cards repo runs these hooks via prek (`prek install` once per clone;
+prek is assumed to be installed):
 
 - **prettier** (`--prose-wrap preserve`): formats markdown. It keeps `---`
   and math intact.

@@ -12,7 +12,7 @@ repos:
   - repo: https://github.com/lycheeverse/lychee
     rev: v0.15.1
     hooks:
-      - id: lychee-docker
+      - id: lychee
         args: [--offline]
   - repo: git@github.com:jvanlier/recall
     rev: 92cdac1c5647dff306462d4c518b2d9c20e3b38e
