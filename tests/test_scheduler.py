@@ -2,12 +2,13 @@
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from recall.log import Review, ReviewLog
 from recall.parser import load_repo
-from recall.scheduler import Scheduler, SchedulerConfig, load_config
+from recall.scheduler import Scheduler, SchedulerConfig, _day_bounds, load_config
 
 NOW = datetime(2026, 6, 10, 12, tzinfo=UTC)
 
@@ -60,7 +61,10 @@ def test_new_card_limit_is_global_across_decks(tmp_path: Path) -> None:
     assert scheduler.counts("B", NOW) == (0, 0)
 
 
-def test_day_boundary_uses_four_am(tmp_path: Path) -> None:
+def test_day_boundary_uses_four_am(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TZ", "UTC")
     result = parsed_repo(tmp_path, "one::1\ntwo::2\n")
     first, second = result.cards
     reviews = [Review(first.id, datetime(2026, 6, 10, 3, 59, tzinfo=UTC), 3, 1)]
@@ -69,6 +73,18 @@ def test_day_boundary_uses_four_am(tmp_path: Path) -> None:
     assert scheduler.counts("all", datetime(2026, 6, 10, 3, 59, tzinfo=UTC))[1] == 0
     assert scheduler.counts("all", datetime(2026, 6, 10, 4, tzinfo=UTC))[1] == 1
     assert second.id != first.id
+
+
+def test_day_boundary_uses_timezone_rules_for_dst(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TZ", "Europe/Amsterdam")
+    now = datetime(2026, 3, 29, 3, 30, tzinfo=ZoneInfo("Europe/Amsterdam"))
+
+    start, end = _day_bounds(now, 4)
+
+    assert start == datetime(2026, 3, 28, 3, tzinfo=UTC)
+    assert end == datetime(2026, 3, 29, 2, tzinfo=UTC)
 
 
 def test_reversible_sibling_is_buried_but_learning_card_returns(tmp_path: Path) -> None:
@@ -87,6 +103,22 @@ def test_reversible_sibling_is_buried_but_learning_card_returns(tmp_path: Path) 
 
     assert scheduler.next_card("all", NOW + timedelta(minutes=2)) == first
     assert scheduler.next_card("all", NOW + timedelta(minutes=2)) != sibling
+
+
+def test_record_matches_state_after_reloading_log(tmp_path: Path) -> None:
+    result = parsed_repo(tmp_path, "one::1\n")
+    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
+    scheduler = Scheduler(result, log=log)
+    card = scheduler.next_card("all", NOW)
+    assert card is not None and card.id is not None
+
+    scheduler.record(card.id, 4, 100, NOW.replace(microsecond=123456))
+    restarted = Scheduler(result, log.read())
+
+    live_state = scheduler.card_state(card.id)
+    restarted_state = restarted.card_state(card.id)
+    assert live_state is not None and restarted_state is not None
+    assert live_state.to_dict() == restarted_state.to_dict()
 
 
 def test_undo_replays_the_card(tmp_path: Path) -> None:
@@ -121,6 +153,19 @@ def test_config_defaults_and_invalid_values_warn(tmp_path: Path) -> None:
 
     assert config == SchedulerConfig()
     assert len(caught) == 4
+
+
+def test_config_rejects_durations_that_overflow(tmp_path: Path) -> None:
+    (tmp_path / ".recall").mkdir()
+    (tmp_path / ".recall" / "config.toml").write_text(
+        'learning_steps = ["999999999999d"]\n',
+        encoding="utf-8",
+    )
+
+    with pytest.warns(UserWarning, match="duration is too large"):
+        config = load_config(tmp_path)
+
+    assert config.learning_steps == SchedulerConfig().learning_steps
 
 
 def test_config_parses_durations_and_parameters(tmp_path: Path) -> None:

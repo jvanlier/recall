@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 import random
 import re
 import tomllib
 import warnings
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fsrs import Card as FsrsCard
 from fsrs import Rating as FsrsRating
@@ -60,7 +62,10 @@ def _duration(value: object) -> timedelta:
         raise ValueError("duration must be a positive number followed by s, m, h, or d")
     amount = int(match[1])
     unit = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days"}[match[2]]
-    return timedelta(**{unit: amount})
+    try:
+        return timedelta(**{unit: amount})
+    except OverflowError as exc:
+        raise ValueError("duration is too large") from exc
 
 
 def _parameters(value: object) -> tuple[float, ...]:
@@ -173,17 +178,30 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _local_timezone(now: datetime):
+    timezone_name = os.environ.get("TZ", "").lstrip(":")
+    if timezone_name:
+        try:
+            return ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            pass
+    return now.astimezone().tzinfo
+
+
 def _day_bounds(now: datetime, day_start_hour: int) -> tuple[datetime, datetime]:
-    local_now = now.astimezone()
-    start = local_now.replace(
-        hour=day_start_hour,
-        minute=0,
-        second=0,
-        microsecond=0,
+    timezone = _local_timezone(now)
+    local_now = now.astimezone(timezone)
+    start_date = local_now.date()
+    start_time = time(hour=day_start_hour)
+    if local_now.time() < start_time:
+        start_date -= timedelta(days=1)
+    start = datetime.combine(start_date, start_time, tzinfo=timezone)
+    end = datetime.combine(
+        start_date + timedelta(days=1),
+        start_time,
+        tzinfo=timezone,
     )
-    if local_now < start:
-        start -= timedelta(days=1)
-    return start.astimezone(UTC), (start + timedelta(days=1)).astimezone(UTC)
+    return start.astimezone(UTC), end.astimezone(UTC)
 
 
 def _card_sort_key(card: Card) -> tuple[str, int, str]:
@@ -389,7 +407,7 @@ class Scheduler:
             raise ValueError(f"unknown card ID: {card_id}")
         if self.log is None:
             raise RuntimeError("record requires a ReviewLog")
-        review_time = _utc(now)
+        review_time = _utc(now).replace(microsecond=0)
         self.log.append(card_id, review_time, rating, ms)
         review = Review(card=card_id, t=review_time, rating=rating, ms=ms)
         self._reviews.append(review)
@@ -406,8 +424,22 @@ class Scheduler:
         removed = self.log.undo_last()
         if removed is None:
             return None
-        if self._parse_result is not None:
-            self.reload(self._parse_result, self.log.read())
+
+        for index in range(len(self._reviews) - 1, -1, -1):
+            if self._reviews[index] == removed:
+                del self._reviews[index]
+                break
+        card_reviews = self._reviews_by_card.get(removed.card)
+        if card_reviews is not None:
+            for index in range(len(card_reviews) - 1, -1, -1):
+                if card_reviews[index] == removed:
+                    del card_reviews[index]
+                    break
+            state = self._replay_card(removed.card, card_reviews)
+            if state is None:
+                self._states.pop(removed.card, None)
+            else:
+                self._states[removed.card] = state
         return removed
 
 
