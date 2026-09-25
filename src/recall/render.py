@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import posixpath
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -12,6 +13,7 @@ from urllib.parse import quote, unquote, urlsplit
 
 from markdown_it.renderer import RendererHTML
 from markdown_it.token import Token
+from markdown_it.utils import EnvType, OptionsDict
 from pygments import highlight
 from pygments.formatters.html import HtmlFormatter
 from pygments.lexers import ClassNotFound, get_lexer_by_name
@@ -30,6 +32,9 @@ class RenderedCard:
 
 
 _PYGMENTS_STYLES = {"light": "default", "dark": "monokai"}
+_CLOZE_MARKER_START = "[[recall-cloze-"
+_CLOZE_MARKER_END = "]]"
+_CLOZE_ENV = "recall_cloze_replacements"
 
 
 def pygments_css(theme: Literal["light", "dark"] = "light") -> str:
@@ -58,7 +63,7 @@ def _normalise_media_path(card_file: Path, source: str) -> str | None:
         return None
 
     path = unquote(parsed.path)
-    if not path or "\x00" in path or "\\" in path:
+    if not path or path.startswith("/") or "\x00" in path or "\\" in path:
         return None
 
     normalised = posixpath.normpath(posixpath.join(card_file.parent.as_posix(), path))
@@ -77,7 +82,7 @@ def _media_url(card_file: Path, source: str, cards_root: Path | None) -> str | N
     if parsed.scheme or parsed.netloc or parsed.path.startswith("/"):
         return None
     path = unquote(parsed.path)
-    if not path or "\x00" in path or "\\" in path:
+    if not path or path.startswith("/") or "\x00" in path or "\\" in path:
         return None
 
     if cards_root is None:
@@ -105,11 +110,60 @@ def _invalid_image(tokens: list[Token], index: int) -> str:
     return f'<span class="invalid-image" role="img">{escape(label)}</span>'
 
 
+def _cloze_from_env(env, marker: str):
+    replacements = env.get(_CLOZE_ENV, {}) if isinstance(env, dict) else {}
+    return replacements.get(marker) if isinstance(replacements, dict) else None
+
+
+class _RecallRenderer(RendererHTML):
+    def renderInlineAsText(
+        self,
+        tokens: Sequence[Token] | None,
+        options: OptionsDict,
+        env: EnvType,
+    ) -> str:
+        result: list[str] = []
+        for token in tokens or []:
+            if token.type == "recall_cloze":
+                replacement = _cloze_from_env(env, token.content)
+                result.append(
+                    replacement[1] if replacement is not None else token.content
+                )
+            else:
+                result.append(super().renderInlineAsText([token], options, env))
+        return "".join(result)
+
+
 def _markdown_renderer(card: Card, cards_root: Path | None):
-    md = markdown_it(html=False)
+    md = markdown_it(html=False, renderer_cls=_RecallRenderer)
     md.enable(["table", "strikethrough"])
     md.options["highlight"] = _highlight_code
     renderer = cast(RendererHTML, md.renderer)
+
+    def parse_cloze_marker(state, silent):
+        start = state.pos
+        if not state.src.startswith(_CLOZE_MARKER_START, start):
+            return False
+        marker_end = state.src.find(_CLOZE_MARKER_END, start + len(_CLOZE_MARKER_START))
+        if marker_end == -1:
+            return False
+        marker_end += len(_CLOZE_MARKER_END)
+        if not silent:
+            token = state.push("recall_cloze", "", 0)
+            token.content = state.src[start:marker_end]
+        state.pos = marker_end
+        return True
+
+    md.inline.ruler.before("text", "recall_cloze", parse_cloze_marker)
+
+    def render_cloze(tokens, index, _options, env):
+        replacement = _cloze_from_env(env, tokens[index].content)
+        return (
+            replacement[0] if replacement is not None else escape(tokens[index].content)
+        )
+
+    renderer.rules["recall_cloze"] = cast(MethodType, render_cloze)
+
     default_image = renderer.rules["image"]
 
     def render_image(tokens, index, options, env):
@@ -136,38 +190,52 @@ def _cloze_replacement(
     if not 0 <= selected < len(spans):
         raise ValueError("cloze card has an invalid deletion index")
 
-    replacements: list[tuple[str, str]] = []
+    replacements: dict[str, tuple[str, str]] = {}
     transformed: list[str] = []
+    selected_deleted = ""
+    selected_placeholder = ""
     position = 0
     for index, span in enumerate(spans):
         deleted = source[span.start + 2 : span.end - 2]
         if index == selected:
-            if answer:
-                inner = md.renderInline(deleted)
-                replacement = f'<mark class="cloze-answer">{inner}</mark>'
-            else:
-                hint = (
-                    source[span.hint_start : span.hint_end - 1]
-                    if span.hint_start is not None
-                    else "…"
+            selected_deleted = deleted
+            hint = (
+                source[span.hint_start : span.hint_end - 1]
+                if span.hint_start is not None
+                else "…"
+            )
+            selected_placeholder = f"{_CLOZE_MARKER_START}{index}{_CLOZE_MARKER_END}"
+            collision = 0
+            while selected_placeholder in source:
+                collision += 1
+                selected_placeholder = (
+                    f"{_CLOZE_MARKER_START}{index}-{'x' * collision}{_CLOZE_MARKER_END}"
                 )
-                replacement = '<span class="cloze">[' + escape(hint) + "]</span>"
-            placeholder = f"\ue000recall-cloze-{index}\ue001"
-            while placeholder in source:
-                placeholder += "x"
-            replacements.append((placeholder, replacement))
+            fallback = f"[{hint}]"
+            replacements[selected_placeholder] = ("", fallback)
             transformed.append(source[position : span.start])
-            transformed.append(placeholder)
+            transformed.append(selected_placeholder)
         else:
             transformed.append(source[position : span.start])
             transformed.append(deleted)
         position = span.hint_end
     transformed.append(source[position:])
 
-    rendered = md.render("".join(transformed))
-    for placeholder, replacement in replacements:
-        rendered = rendered.replace(placeholder, replacement)
-    return rendered
+    environment: dict[str, object] = {_CLOZE_ENV: replacements}
+    tokens = md.parse("".join(transformed), environment)
+    if answer:
+        inner = md.renderInline(selected_deleted, environment)
+        replacement = f'<mark class="cloze-answer">{inner}</mark>'
+        alt = selected_deleted
+    else:
+        replacement = (
+            '<span class="cloze">'
+            + escape(replacements[selected_placeholder][1])
+            + "</span>"
+        )
+        alt = replacements[selected_placeholder][1]
+    replacements[selected_placeholder] = (replacement, alt)
+    return md.renderer.render(tokens, md.options, environment)
 
 
 def _render_cloze(card: Card, md, *, answer: bool) -> str:

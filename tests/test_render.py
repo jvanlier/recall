@@ -47,6 +47,25 @@ def test_cloze_masks_only_the_selected_deletion(tmp_path: Path) -> None:
     assert '<mark class="cloze-answer">Canberra</mark>' in second.back_html
 
 
+def test_cloze_replacement_is_safe_inside_image_alt_text(tmp_path: Path) -> None:
+    cards = parse_snippet(tmp_path, "==![== ==bird== ==](bird.png)==\n").cards
+
+    rendered = render_card(cards[1])
+
+    assert 'alt=" <span' not in rendered.front_html
+    assert 'alt=" […] "' in rendered.front_html
+
+
+def test_selected_cloze_keeps_reference_definitions(tmp_path: Path) -> None:
+    card = parse_snippet(
+        tmp_path, "==[foo][ref]==\n\n[ref]: https://example.com\n"
+    ).cards[0]
+
+    rendered = render_card(card)
+
+    assert '<a href="https://example.com">foo</a>' in rendered.back_html
+
+
 def test_math_tables_strikethrough_and_code_are_rendered(tmp_path: Path) -> None:
     card = parse_snippet(
         tmp_path,
@@ -92,6 +111,15 @@ def test_images_are_rewritten_and_invalid_paths_are_visible(tmp_path: Path) -> N
     assert rendered.back_html.count('class="invalid-image"') == 2
     assert "outside" in rendered.back_html
     assert "hidden" in rendered.back_html
+
+
+def test_encoded_absolute_image_paths_are_rejected(tmp_path: Path) -> None:
+    card = parse_snippet(tmp_path, "question\n?\n![secret](%2Fetc/passwd)\n").cards[0]
+
+    rendered = render_card(card)
+
+    assert 'class="invalid-image"' in rendered.back_html
+    assert "/media/" not in rendered.back_html
 
 
 def test_symlinked_images_are_rejected_when_root_is_available(tmp_path: Path) -> None:
