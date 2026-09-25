@@ -25,7 +25,7 @@ class _Comment:
 class _Cloze:
     start: int
     end: int
-    hint: str | None
+    hint_start: int | None
     hint_end: int
 
 
@@ -104,16 +104,6 @@ def _semantic_mask(
     return mask, comments
 
 
-def _strip_comments(source: str, comments: Iterable[_Comment]) -> str:
-    remove = [False] * len(source)
-    for comment in comments:
-        remove[comment.start : comment.end] = [True] * (comment.end - comment.start)
-    return "".join(
-        " " if remove[index] and character != "\n" else character
-        for index, character in enumerate(source)
-    )
-
-
 def _comment_body(comment: _Comment) -> str:
     body = (
         comment.content[4:-3]
@@ -176,35 +166,50 @@ def _find_clozes(source: str, mask: list[bool]) -> list[_Cloze]:
         if end == -1:
             return result
 
-        hint: str | None = None
+        hint_start: int | None = None
         hint_end = end + 2
-        hint_start = end + 2
-        if visible[hint_start : hint_start + 2] == "^[":
-            close_hint = visible.find("]", hint_start + 2)
+        if visible[end + 2 : end + 4] == "^[":
+            close_hint = visible.find("]", end + 4)
             if close_hint != -1:
-                hint = source[hint_start + 2 : close_hint]
+                hint_start = end + 4
                 hint_end = close_hint + 1
 
         result.append(
             _Cloze(
                 start=start,
                 end=end + 2,
-                hint=hint,
+                hint_start=hint_start,
                 hint_end=hint_end,
             )
         )
         position = hint_end
 
 
-def _remove_cloze_syntax(source: str, clozes: Iterable[_Cloze]) -> str:
-    remove = [False] * len(source)
-    for cloze in clozes:
-        remove[cloze.start : cloze.start + 2] = [True, True]
-        remove[cloze.end - 2 : cloze.end] = [True, True]
-        remove[cloze.end : cloze.hint_end] = [True] * (cloze.hint_end - cloze.end)
+def _comment_mask(length: int, comments: Iterable[_Comment]) -> list[bool]:
+    mask = [False] * length
+    for comment in comments:
+        _mark_interval(mask, comment.start, comment.end)
+    return mask
+
+
+def _kept(
+    source: str, removed: list[bool], start: int = 0, end: int | None = None
+) -> str:
+    """Return ``source[start:end]`` without the characters marked *removed*."""
+    end = len(source) if end is None else end
     return "".join(
-        character for index, character in enumerate(source) if not remove[index]
+        character
+        for index, character in enumerate(source[start:end], start)
+        if not removed[index]
     )
+
+
+def _without_cloze_syntax(removed: list[bool], clozes: Iterable[_Cloze]) -> list[bool]:
+    removed = removed.copy()
+    for cloze in clozes:
+        _mark_interval(removed, cloze.start, cloze.start + 2)
+        _mark_interval(removed, cloze.end - 2, cloze.hint_end)
+    return removed
 
 
 def _mark_contents(tokens: Iterable[Token]) -> list[str]:
@@ -283,11 +288,13 @@ def _parse_block(
         line - first_line for line in protected_lines if first_line <= line
     }
     _, comments = _semantic_mask(source, local_protected)
-    clean = _strip_comments(source, comments)
+    # *clean* blanks comments in place so offsets match *source* for parsing;
+    # card text is taken from *source* with the comment characters removed.
+    in_comment = _comment_mask(len(source), comments)
+    clean = _masked(source, in_comment)
     mask, _ = _semantic_mask(clean, local_protected)
     visible = _masked(clean, mask)
     spans = _line_spans(clean)
-    lines = [clean[start:end] for start, end in spans]
     semantic_lines = [visible[start:end] for start, end in spans]
     hidden_comments = [comment for comment in comments if _is_hide(comment)]
     block_hidden = bool(hidden_comments)
@@ -303,8 +310,8 @@ def _parse_block(
 
     if marker_line is not None:
         index, marker = marker_line
-        front = "".join(lines[:index]).strip()
-        back = "".join(lines[index + 1 :]).strip()
+        front = _kept(source, in_comment, 0, spans[index][0]).strip()
+        back = _kept(source, in_comment, spans[index][1]).strip()
         card_line = first_line + index + 1
         if not front or not back:
             _warning(
@@ -365,8 +372,8 @@ def _parse_block(
                 "cloze block has no valid deletions",
             )
             return []
-        full_text = clean.strip()
-        raw_text = _remove_cloze_syntax(clean, clozes).strip()
+        full_text = _kept(source, in_comment).strip()
+        raw_text = _kept(source, _without_cloze_syntax(in_comment, clozes)).strip()
         cards = []
         for index, cloze in enumerate(clozes):
             cards.append(
@@ -383,7 +390,11 @@ def _parse_block(
                     raw_text=raw_text,
                     cloze_text=full_text,
                     cloze_index=index,
-                    cloze_hint=cloze.hint,
+                    cloze_hint=None
+                    if cloze.hint_start is None
+                    else _kept(
+                        source, in_comment, cloze.hint_start, cloze.hint_end - 1
+                    ),
                 )
             )
         return cards
@@ -422,11 +433,11 @@ def _parse_block(
         marker_position = semantic_line.find(marker)
         if marker_position == -1:
             continue
-        raw_line = lines[index].rstrip("\r\n")
-        front = raw_line[:marker_position].strip()
-        back = raw_line[marker_position + len(marker) :].strip()
         line_start = spans[index][0]
         line_end = spans[index][1]
+        marker_start = line_start + marker_position
+        front = _kept(source, in_comment, line_start, marker_start).strip()
+        back = _kept(source, in_comment, marker_start + len(marker), line_end).strip()
         line_comments = [
             comment
             for comment in comments

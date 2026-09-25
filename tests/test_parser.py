@@ -225,7 +225,39 @@ def test_comments_inside_clozes_are_ignored(tmp_path: Path, snippet: str) -> Non
     result = parse_snippet(tmp_path, snippet)
 
     assert len(result.cards) == 1
+    assert result.cards[0].front == "The ==Australia== capital."
+    assert result.cards[0].raw_text == "The Australia capital."
     assert result.warnings == []
+
+
+@pytest.mark.parametrize(
+    ("snippet", "front", "back"),
+    [
+        ("Aus<!-- x -->tralia\n?\nCan<!--\nmulti\n-->berra\n", "Australia", "Canberra"),
+        ("Aus<!-- x -->tralia::Can<!-- y -->berra\n", "Australia", "Canberra"),
+        (
+            "<!-- id: aus -->Australia::Canberra <!-- hide -->\n",
+            "Australia",
+            "Canberra",
+        ),
+    ],
+)
+def test_comments_are_removed_from_card_text(
+    tmp_path: Path, snippet: str, front: str, back: str
+) -> None:
+    result = parse_snippet(tmp_path, snippet)
+
+    assert [(card.front, card.back, card.raw_text) for card in result.cards] == [
+        (front, back, front)
+    ]
+    assert result.warnings == []
+
+
+def test_comments_are_removed_from_cloze_hints(tmp_path: Path) -> None:
+    result = parse_snippet(tmp_path, "The ==capital==^[ci<!-- x -->ty].\n")
+
+    assert result.cards[0].cloze_hint == "city"
+    assert result.cards[0].raw_text == "The capital."
 
 
 def test_blank_lines_are_kept_inside_card_sides(tmp_path: Path) -> None:
