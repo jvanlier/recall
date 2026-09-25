@@ -87,8 +87,7 @@ def test_final_rating_triggers_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPa
             },
         )
         assert "Session complete" in response.text
-
-    assert calls
+        assert calls
 
 
 def test_review_cycle_appends_to_log(tmp_path: Path) -> None:

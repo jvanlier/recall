@@ -24,7 +24,7 @@ from fastapi.templating import Jinja2Templates
 
 from recall.cards import Card, ParseResult
 from recall.gitsync import GitSync, SyncResult
-from recall.log import ReviewLog
+from recall.log import Review, ReviewLog
 from recall.parser import load_repo, markdown_files
 from recall.render import RenderedCard, render_card
 from recall.scheduler import Scheduler, load_config
@@ -152,6 +152,9 @@ class AppState:
     last_sync_attempt: float = 0.0
     sync_gate: asyncio.Lock = field(default_factory=asyncio.Lock)
     sync_task: asyncio.Task[SyncResult] | None = None
+    reviews: list[Review] = field(default_factory=list)
+    pending_reviews: int = 0
+    last_review_at: datetime | None = None
     sessions: dict[str, ReviewSession] = field(default_factory=dict)
 
 
@@ -186,7 +189,11 @@ def refresh_decks(state: AppState, *, force: bool = False) -> bool:
     with pywarnings.catch_warnings(record=True) as captured:
         pywarnings.simplefilter("always")
         parse_result = load_repo(state.settings.cards_dir)
-        reviews = state.log.read()
+        if state.sync_task is not None and not state.sync_task.done():
+            reviews = state.reviews
+        else:
+            reviews = state.log.read()
+            state.reviews = reviews
         config = load_config(state.settings.cards_dir)
         scheduler = Scheduler(parse_result, reviews, log=state.log, config=config)
 
@@ -292,9 +299,11 @@ def _rendered_card(state: AppState, card: Card) -> RenderedCard:
     return render_card(card, state.settings.cards_dir)
 
 
-def _apply_sync_result(state: AppState, result: SyncResult) -> None:
+def _apply_sync_result(state: AppState, result: SyncResult, *, update_pending: bool = True) -> None:
     state.sync_warnings = list(result.warnings)
     state.sync_error = result.error
+    if update_pending:
+        state.pending_reviews = state.log.pending
     state.warnings = [*state.parse_warnings, *_sync_warning_texts(state)]
 
 
@@ -317,6 +326,16 @@ async def _finish_sync_task(state: AppState, task: asyncio.Task[SyncResult]) -> 
             _complete_sync_task(state, task)
 
 
+async def _wait_for_running_sync(state: AppState) -> None:
+    task = state.sync_task
+    if task is None:
+        return
+    if not task.done():
+        await asyncio.shield(task)
+    if state.sync_task is task:
+        _complete_sync_task(state, task)
+
+
 async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | None:
     """Run git away from the event loop, subject to the deck-load interval."""
     async with state.sync_gate:
@@ -333,7 +352,7 @@ async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | Non
             except TimeoutError:
                 _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
                 result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
-                _apply_sync_result(state, result)
+                _apply_sync_result(state, result, update_pending=False)
                 return result
             return _complete_sync_task(state, existing)
 
@@ -349,7 +368,7 @@ async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | Non
         except TimeoutError:
             _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
             result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
-            _apply_sync_result(state, result)
+            _apply_sync_result(state, result, update_pending=False)
             return result
         return _complete_sync_task(state, task)
 
@@ -357,16 +376,10 @@ async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | Non
 async def _idle_sync_loop(state: AppState) -> None:
     while True:
         await asyncio.sleep(30)
-        if state.git_sync is None:
+        if state.git_sync is None or state.pending_reviews == 0:
             continue
-        async with state.sync_gate:
-            if state.log.pending == 0:
-                continue
-            reviews = state.log.read()
-        if not reviews:
-            continue
-        last_review = max(review.t for review in reviews)
-        if datetime.now(UTC) - last_review >= timedelta(minutes=5):
+        last_review = state.last_review_at
+        if last_review is not None and datetime.now(UTC) - last_review >= timedelta(minutes=5):
             await _run_sync(state, force=True)
 
 
@@ -377,14 +390,14 @@ def _fragment_context(state: AppState, session: ReviewSession, card: Card | None
             "rendered": None,
             "session": session,
             "presentation_token": None,
-            "pending": state.log.pending > 0,
+            "pending": state.pending_reviews > 0,
         }
     return {
         "card": card,
         "rendered": _rendered_card(state, card),
         "session": session,
         "presentation_token": session.presentation_token,
-        "pending": state.log.pending > 0,
+        "pending": state.pending_reviews > 0,
     }
 
 
@@ -569,6 +582,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
 
     async def show_review(request: Request, scope: str | None) -> HTMLResponse:
         async with state.sync_gate:
+            await _wait_for_running_sync(state)
             refresh_decks(state)
             assert state.scheduler is not None
             value = _validated_scope(state, scope)
@@ -591,6 +605,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
     async def rate(request: Request):
         payload = await _request_payload(request)
         async with state.sync_gate:
+            await _wait_for_running_sync(state)
             refresh_decks(state)
             assert state.scheduler is not None
             card_key = "card" if "card" in payload else "card_id"
@@ -607,7 +622,10 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
             if session.current_card != card_id or session.presentation_token != presentation:
                 raise HTTPException(status_code=400, detail="card is no longer presented")
 
-            state.scheduler.record(card_id, rating, elapsed, datetime.now(UTC))
+            reviewed_at = datetime.now(UTC)
+            state.scheduler.record(card_id, rating, elapsed, reviewed_at)
+            state.pending_reviews = state.log.pending
+            state.last_review_at = reviewed_at
             session.reviewed += 1
             next_card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
             _present(session, next_card)
@@ -622,11 +640,15 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
     async def undo(request: Request):
         payload = await _request_payload(request)
         async with state.sync_gate:
+            await _wait_for_running_sync(state)
             refresh_decks(state)
             assert state.scheduler is not None
             submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
             token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
             removed = state.scheduler.undo()
+            state.pending_reviews = state.log.pending
+            if state.pending_reviews == 0:
+                state.last_review_at = None
             if removed is not None:
                 session.reviewed = max(0, session.reviewed - 1)
             card = _card_by_id(state, removed.card) if removed is not None else None
@@ -642,6 +664,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
     async def done(request: Request):
         payload = await _request_payload(request)
         async with state.sync_gate:
+            await _wait_for_running_sync(state)
             refresh_decks(state)
             submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
             token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
