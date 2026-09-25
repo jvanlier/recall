@@ -1,0 +1,21 @@
+services:
+  recall:
+    build:
+      context: .
+      args:
+        PORT: ${PORT:-8000}
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    restart: unless-stopped
+    environment:
+      RECALL_CARDS_DIR: /cards
+      PORT: ${PORT:-8000}
+      TZ: ${TZ:-Europe/Amsterdam}
+      GIT_AUTHOR_NAME: ${GIT_AUTHOR_NAME:?set GIT_AUTHOR_NAME in .env}
+      GIT_AUTHOR_EMAIL: ${GIT_AUTHOR_EMAIL:?set GIT_AUTHOR_EMAIL in .env}
+      GIT_COMMITTER_NAME: ${GIT_COMMITTER_NAME:?set GIT_COMMITTER_NAME in .env}
+      GIT_COMMITTER_EMAIL: ${GIT_COMMITTER_EMAIL:?set GIT_COMMITTER_EMAIL in .env}
+    volumes:
+      - ./recall-cards:/cards:rw
+      - ${DEPLOY_KEY_PATH:-./secrets/deploy_key}:/run/secrets/deploy_key:ro
+      - ${KNOWN_HOSTS_PATH:-./secrets/known_hosts}:/run/secrets/known_hosts:ro
