@@ -24,13 +24,13 @@ The derivative is $2x$.
 
 What does this Python expression print?
 
-?
-
-It prints `3`.
-
 ```python
 print(1 + 2)
 ```
+
+?
+
+It prints `3`.
 
 ---
 
