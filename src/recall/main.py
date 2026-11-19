@@ -559,10 +559,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
     assert app_settings.db_path is not None
     state = AppState(
         settings=app_settings,
-        log=ReviewStore(
-            app_settings.db_path,
-            legacy_log=app_settings.cards_dir / ".recall" / "reviews.jsonl",
-        ),
+        log=ReviewStore(app_settings.db_path),
     )
     if app_settings.git_sync:
         state.git_sync = GitSync(app_settings.cards_dir, timeout=app_settings.git_sync_timeout)

@@ -104,9 +104,6 @@ that the database file must be backed up separately.
 
 Undo deletes the last row recorded by the running process.
 
-Earlier versions stored the log as `.recall/reviews.jsonl` in the cards repo.
-If the database is empty at startup, that file is imported once.
-
 A future relink feature (for when you reword a front) would add a table of
 old-to-new card IDs.
 
