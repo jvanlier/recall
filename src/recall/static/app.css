@@ -137,7 +137,11 @@ h2 { margin-top: 0; }
   max-width: 100%; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--border);
   border-radius: .7rem; background: var(--surface); overflow-x: auto; overflow-wrap: anywhere;
 }
-.card-content.answer { margin-top: .9rem; }
+.card-content.answer { position: relative; margin-top: .9rem; }
+.answer-ghost {
+  position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center;
+  font-weight: 650; pointer-events: none;
+}
 .card-content pre, .card-content table { max-width: 100%; overflow: auto; }
 .card-content pre { padding: .8rem; border-radius: .4rem; background: var(--surface-muted); }
 .card-content img { max-width: 100%; height: auto; }
