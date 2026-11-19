@@ -137,7 +137,6 @@ h2 { margin-top: 0; }
   max-width: 100%; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--border);
   border-radius: .7rem; background: var(--surface); overflow-x: auto; overflow-wrap: anywhere;
 }
-.card-content.question { min-height: 8rem; }
 .card-content.answer { margin-top: .9rem; }
 .card-content pre, .card-content table { max-width: 100%; overflow: auto; }
 .card-content pre { padding: .8rem; border-radius: .4rem; background: var(--surface-muted); }
@@ -146,7 +145,7 @@ h2 { margin-top: 0; }
 
 .card-content p:first-child { margin-top: 0; }
 .card-content p:last-child { margin-bottom: 0; }
-.button-answer { width: 100%; margin: 1rem 0; min-height: 3.25rem; }
+.button-answer { width: 100%; margin: .9rem 0 0; padding: clamp(1rem, 4vw, 2rem); }
 .ratings { margin-top: 1.25rem; }
 .rating-label { margin: 0 0 .45rem; text-align: center; }
 .rating-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; }
