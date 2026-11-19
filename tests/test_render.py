@@ -11,7 +11,7 @@ def parse_snippet(tmp_path: Path, snippet: str, name: str = "Deck.md"):
     return load_repo(tmp_path)
 
 
-def test_basic_card_renders_markdown_and_answer_divider(tmp_path: Path) -> None:
+def test_basic_card_renders_markdown_without_repeating_question(tmp_path: Path) -> None:
     card = parse_snippet(
         tmp_path,
         "Question with **emphasis**\n?\nAnswer with ~~an old word~~\n",
@@ -20,8 +20,7 @@ def test_basic_card_renders_markdown_and_answer_divider(tmp_path: Path) -> None:
     rendered = render_card(card)
 
     assert rendered.front_html == "<p>Question with <strong>emphasis</strong></p>\n"
-    assert "<hr>" in rendered.back_html
-    assert "<s>an old word</s>" in rendered.back_html
+    assert rendered.back_html == "<p>Answer with <s>an old word</s></p>\n"
 
 
 def test_reversible_cards_keep_the_parser_direction(tmp_path: Path) -> None:
@@ -90,7 +89,7 @@ print(1 + 2)
 
     rendered = render_card(card)
 
-    assert '<span class="math inline">a_1 * b_1</span>' in rendered.back_html
+    assert '<span class="math inline">a_1 * b_1</span>' in rendered.front_html
     assert "<em>" not in rendered.back_html
     assert "<table>" in rendered.back_html
     assert "<s>old</s>" in rendered.back_html
