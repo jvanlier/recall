@@ -574,7 +574,7 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
         refresh_decks(state, force=True)
         yield
 
-    app = FastAPI(title="recall", lifespan=lifespan)
+    app = FastAPI(title="Total Recall", lifespan=lifespan)
     app.state.recall = state
     app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 

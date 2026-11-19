@@ -1,5 +1,5 @@
 [project]
-name = "recall"
+name = "total-recall"
 version = "0.1.0"
 description = "A personal spaced repetition web app for markdown cards."
 readme = "README.md"
@@ -15,11 +15,14 @@ dependencies = [
 ]
 
 [project.scripts]
-recall = "recall.cli:main"
+total-recall = "recall.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.0,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "recall"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

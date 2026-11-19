@@ -1,7 +1,7 @@
 # Card format
 
 Cards live as plain markdown in a dedicated, private cards repo. You edit
-them in any editor (nvim); recall only reads them. This page is the syntax
+them in any editor (nvim); Total Recall only reads them. This page is the syntax
 reference. See [design.md](design.md) for how it all fits together.
 
 ## Decks
@@ -20,7 +20,7 @@ A deck file is split into **blocks** by horizontal rules (`---`; `***` and
 
 **Always put a blank line before `---`.** Without it, markdown reads the
 line above as a heading (`text` + `---` = setext heading), so the separator
-disappears. markdownlint (MD003) and `recall check` both flag this.
+disappears. markdownlint (MD003) and `total-recall check` both flag this.
 
 Each block is one of the following. They are checked in this order and the
 first match wins:
@@ -135,7 +135,7 @@ perro:::dog <!-- id: perro -->
 ```
 
 Pinned IDs use `a-z`, `0-9` and `-`. Two cards with the same ID are an
-error; `recall check` reports it and both cards are skipped.
+error; `total-recall check` reports it and both cards are skipped.
 
 ## Hiding cards
 
@@ -156,6 +156,6 @@ prek is assumed to be installed):
 - **markdownlint-cli2**: lints markdown. MD013 (line length) and MD041 (first
   line heading) are off, MD003 is `atx` and MD035 is `---`.
 - **lychee** (offline): checks local links and image paths.
-- **recall check**: checks card syntax, such as duplicate IDs, a `?` with an
-  empty side, missing images, unclosed `$`, and headings made by a missing
-  blank line before `---`.
+- **total-recall check**: checks card syntax, such as duplicate IDs, a `?`
+  with an empty side, missing images, unclosed `$`, and headings made by a
+  missing blank line before `---`.

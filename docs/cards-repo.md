@@ -1,6 +1,6 @@
 # Cards repository
 
-`recall` keeps cards and review history in a separate, private Git repository.
+Total Recall keeps cards and review history in a separate, private Git repository.
 The example repository in [`examples/cards/`](../examples/cards/) is a starter
 template; copy it into your cards repository before adding your own decks.
 

@@ -1,4 +1,4 @@
-"""Command-line interface for recall."""
+"""Command-line interface for Total Recall."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from recall.main import create_app, load_settings
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
-        prog="recall",
+        prog="total-recall",
         description="Review markdown cards with spaced repetition.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -30,13 +30,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the recall command-line interface."""
+    """Run the Total Recall command-line interface."""
     args = build_parser().parse_args(argv)
     if args.command == "serve":
         try:
             settings = load_settings()
         except ValueError as error:
-            print(f"recall serve: {error}")
+            print(f"total-recall serve: {error}")
             return 1
 
         import uvicorn
@@ -51,7 +51,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         result = check_repo(Path.cwd() if args.path is None else args.path)
     except (OSError, RuntimeError, ValueError) as error:
-        print(f"recall check: {error}")
+        print(f"total-recall check: {error}")
         return 1
 
     for warning in result.warnings:
