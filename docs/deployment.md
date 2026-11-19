@@ -94,15 +94,6 @@ docker compose exec recall python -c \
   "import sqlite3; sqlite3.connect('/data/reviews.db').backup(sqlite3.connect('/data/backup.db'))"
 ```
 
-## Migrating from `reviews.jsonl`
-
-Earlier versions committed reviews to `.recall/reviews.jsonl` in the cards
-repository. If the database is empty at startup, the app imports that file
-once. After upgrading, create `recall-data` as described above, start the
-service, and check that the due counts look right. Then delete
-`.recall/reviews.jsonl` and `.gitattributes` from the cards repository on
-your laptop. The deploy key no longer needs write access.
-
 ## Updates
 
 CI builds the image but does not publish it, so this checkout uses a local

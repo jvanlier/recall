@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import sqlite3
 import threading
-import warnings
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
@@ -81,42 +79,16 @@ def _review(card: object, t: object, rating: object, ms: object) -> Review:
     )
 
 
-def read_jsonl(path: str | Path) -> list[Review]:
-    """Read reviews from the legacy ``reviews.jsonl`` log, warning about bad lines."""
-    try:
-        file = Path(path).open("rb")
-    except FileNotFoundError:
-        return []
-    reviews: list[Review] = []
-    with file:
-        for line_number, raw_line in enumerate(file, start=1):
-            try:
-                record = json.loads(raw_line.decode("utf-8"))
-                if not isinstance(record, dict):
-                    raise ValueError("expected an object")
-                if "card" not in record:
-                    continue
-                reviews.append(_review(record["card"], record["t"], record["rating"], record["ms"]))
-            except (UnicodeDecodeError, KeyError, ValueError) as exc:
-                warnings.warn(f"malformed review log line {line_number}: {exc}", UserWarning, stacklevel=2)
-    return reviews
-
-
 class ReviewStore:
     """Read, append, and undo reviews in a SQLite database."""
 
-    def __init__(self, path: str | Path, *, legacy_log: str | Path | None = None) -> None:
+    def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self._lock = threading.RLock()
         self._undoable: list[tuple[int, Review]] = []
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as connection:
             connection.execute(_SCHEMA)
-            if legacy_log is not None and connection.execute("SELECT 1 FROM reviews LIMIT 1").fetchone() is None:
-                connection.executemany(
-                    "INSERT INTO reviews (card, t, rating, ms) VALUES (?, ?, ?, ?)",
-                    [(r.card, _format_timestamp(r.t), r.rating, r.ms) for r in read_jsonl(legacy_log)],
-                )
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
