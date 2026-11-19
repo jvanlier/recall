@@ -21,7 +21,7 @@ from fsrs import Scheduler as FsrsScheduler
 from fsrs import State as FsrsState
 
 from recall.cards import Card, ParseResult
-from recall.log import Review, ReviewLog
+from recall.store import Review, ReviewStore
 
 _DEFAULT_LEARNING_STEPS = (timedelta(minutes=1), timedelta(minutes=10))
 _DEFAULT_RELEARNING_STEPS = (timedelta(minutes=10),)
@@ -214,12 +214,12 @@ class Scheduler:
     def __init__(
         self,
         parse_result: ParseResult | None = None,
-        reviews: Iterable[Review] | ReviewLog | None = None,
+        reviews: Iterable[Review] | ReviewStore | None = None,
         *,
-        log: ReviewLog | None = None,
+        log: ReviewStore | None = None,
         config: SchedulerConfig | None = None,
     ) -> None:
-        if isinstance(reviews, ReviewLog):
+        if isinstance(reviews, ReviewStore):
             log = reviews
             reviews = None
         self.log = log
@@ -390,7 +390,7 @@ class Scheduler:
         if card_id not in self._cards_by_id:
             raise ValueError(f"unknown card ID: {card_id}")
         if self.log is None:
-            raise RuntimeError("record requires a ReviewLog")
+            raise RuntimeError("record requires a ReviewStore")
         review_time = _utc(now).replace(microsecond=0)
         self.log.append(card_id, review_time, rating, ms)
         review = Review(card=card_id, t=review_time, rating=rating, ms=ms)
@@ -402,7 +402,7 @@ class Scheduler:
         return self._cards_by_id[card_id]
 
     def undo(self) -> Review | None:
-        """Undo the last uncommitted review and replay the affected card."""
+        """Undo the last review recorded by this process and replay the affected card."""
         if self.log is None:
             return None
         removed = self.log.undo_last()

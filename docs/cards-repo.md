@@ -8,8 +8,8 @@ template; copy it into your cards repository before adding your own decks.
 
 Create a private GitHub repository for the cards. The planned repository is
 [`jvanlier/recall-cards`](https://github.com/jvanlier/recall-cards). If you
-start from scratch, give the app's server deploy key write access to the
-repository under **Settings → Deploy keys**.
+start from scratch, give the app's server read access to the
+repository with a deploy key under **Settings → Deploy keys**.
 
 Clone it over SSH and copy the starter kit:
 
@@ -25,9 +25,9 @@ With `lychee` installed, install the hooks once per clone:
 prek install
 ```
 
-The starter kit includes `.gitattributes` so concurrent review-log appends
-merge as a union, and `.recall/config.toml` documenting the scheduler
-defaults. The sample decks and image are safe to replace.
+The starter kit includes `.recall/config.toml` documenting the scheduler
+defaults, and a `.gitignore` for a local review database. The sample decks
+and image are safe to replace.
 
 ## Daily loop
 
@@ -40,5 +40,5 @@ git commit -m "cards: update Spanish vocabulary"
 git push
 ```
 
-The server pulls card edits and pushes review sessions. Do not edit
-`.recall/reviews.jsonl` by hand; it is the app's append-only state.
+The server pulls card edits. Review history lives in the app's SQLite
+database, not in this repository.

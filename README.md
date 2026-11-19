@@ -8,16 +8,21 @@ explains how to run the app on a home server.
 
 ## Run the web app
 
-Set `RECALL_CARDS_DIR` to a cards repository and start the server:
+Start the server on the example cards, with git sync off:
 
 ```sh
-RECALL_CARDS_DIR=examples/cards uv run recall serve
+just serve
 ```
 
-`PORT` defaults to `8000` and `HOST` defaults to `0.0.0.0`. The review log is
-stored at `.recall/reviews.jsonl` in the cards repository. Git sync runs on deck
-loads, when a session ends, and in the background; set `RECALL_GIT_SYNC=0` to
-disable it for local development.
+To use your own cards, set `RECALL_CARDS_DIR` to a cards repository, for
+example `RECALL_CARDS_DIR=~/cards RECALL_GIT_SYNC=1 just serve`.
+
+`PORT` defaults to `8000` and `HOST` defaults to `0.0.0.0`. Reviews are stored
+in a SQLite database at `RECALL_DB`, which defaults to `.recall/reviews.db` in
+the cards repository. On first start, an existing `.recall/reviews.jsonl` is
+imported into an empty database. The app pulls card edits with
+`git pull --ff-only` on deck loads unless `RECALL_GIT_SYNC=0`; `just serve`
+sets that by default.
 
 The app vendors htmx **2.0.7** and KaTeX **0.16.22** in
 `src/recall/static/`; it does not load front-end dependencies from a CDN.
@@ -34,6 +39,8 @@ prek install --hook-type pre-commit --hook-type pre-push
 Run the tests and all checks with:
 
 ```sh
-uv run pytest
+just test
 prek run --all-files
 ```
+
+Arguments after `just test` are passed to pytest, as in `just test -k store`.

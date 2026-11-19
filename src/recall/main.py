@@ -11,9 +11,9 @@ import secrets
 import time
 import warnings as pywarnings
 from collections.abc import Mapping
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs
 
@@ -24,10 +24,10 @@ from fastapi.templating import Jinja2Templates
 
 from recall.cards import Card, ParseResult
 from recall.gitsync import GitSync, SyncResult
-from recall.log import Review, ReviewLog
 from recall.parser import load_repo, markdown_files
 from recall.render import RenderedCard, render_card
 from recall.scheduler import Scheduler, load_config
+from recall.store import ReviewStore
 
 _LOGGER = logging.getLogger(__name__)
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -56,11 +56,14 @@ class Settings:
     port: int = 8000
     git_sync: bool = True
     git_sync_timeout: float = 15.0
+    db_path: Path | None = None
 
     def __post_init__(self) -> None:
         cards_dir = Path(self.cards_dir).expanduser()
         if not cards_dir.is_dir():
             raise ValueError(f"RECALL_CARDS_DIR must be an existing directory: {cards_dir}")
+        db_path = cards_dir / ".recall" / "reviews.db" if self.db_path is None else Path(self.db_path).expanduser()
+        object.__setattr__(self, "db_path", db_path)
         if not isinstance(self.host, str) or not self.host:
             raise ValueError("HOST must be a non-empty string")
         if type(self.port) is not int or not 1 <= self.port <= 65535:
@@ -102,6 +105,7 @@ def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
         host=values.get("HOST", "0.0.0.0"),
         port=port,
         git_sync=_git_sync_enabled(values.get("RECALL_GIT_SYNC", "1")),
+        db_path=Path(values["RECALL_DB"]) if values.get("RECALL_DB") else None,
     )
 
 
@@ -150,7 +154,7 @@ class AppState:
     """Mutable application state shared by the routes."""
 
     settings: Settings
-    log: ReviewLog
+    log: ReviewStore
     git_sync: GitSync | None = None
     parse_result: ParseResult | None = None
     scheduler: Scheduler | None = None
@@ -162,9 +166,7 @@ class AppState:
     last_sync_attempt: float = 0.0
     sync_gate: asyncio.Lock = field(default_factory=asyncio.Lock)
     sync_task: asyncio.Task[SyncResult] | None = None
-    reviews: list[Review] = field(default_factory=list)
     pending_reviews: int = 0
-    last_review_at: datetime | None = None
     sessions: dict[str, ReviewSession] = field(default_factory=dict)
 
 
@@ -199,11 +201,7 @@ def refresh_decks(state: AppState, *, force: bool = False) -> bool:
     with pywarnings.catch_warnings(record=True) as captured:
         pywarnings.simplefilter("always")
         parse_result = load_repo(state.settings.cards_dir)
-        if state.sync_task is not None and not state.sync_task.done():
-            reviews = state.reviews
-        else:
-            reviews = state.log.read()
-            state.reviews = reviews
+        reviews = state.log.read()
         config = load_config(state.settings.cards_dir)
         scheduler = Scheduler(parse_result, reviews, log=state.log, config=config)
 
@@ -340,11 +338,9 @@ def _browse_warnings(state: AppState, scope: str) -> list[AppWarning]:
     return result
 
 
-def _apply_sync_result(state: AppState, result: SyncResult, *, update_pending: bool = True) -> None:
+def _apply_sync_result(state: AppState, result: SyncResult) -> None:
     state.sync_warnings = list(result.warnings)
     state.sync_error = result.error
-    if update_pending:
-        state.pending_reviews = state.log.pending
     state.warnings = [*state.parse_warnings, *_sync_warning_texts(state)]
 
 
@@ -393,7 +389,7 @@ async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | Non
             except TimeoutError:
                 _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
                 result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
-                _apply_sync_result(state, result, update_pending=False)
+                _apply_sync_result(state, result)
                 return result
             return _complete_sync_task(state, existing)
 
@@ -409,19 +405,9 @@ async def _run_sync(state: AppState, *, force: bool = False) -> SyncResult | Non
         except TimeoutError:
             _LOGGER.warning("git sync timed out after %gs", state.settings.git_sync_timeout)
             result = SyncResult(error=f"timed out after {state.settings.git_sync_timeout:g}s")
-            _apply_sync_result(state, result, update_pending=False)
+            _apply_sync_result(state, result)
             return result
         return _complete_sync_task(state, task)
-
-
-async def _idle_sync_loop(state: AppState) -> None:
-    while True:
-        await asyncio.sleep(30)
-        if state.git_sync is None or state.pending_reviews == 0:
-            continue
-        last_review = state.last_review_at
-        if last_review is not None and datetime.now(UTC) - last_review >= timedelta(minutes=5):
-            await _run_sync(state, force=True)
 
 
 def _fragment_context(state: AppState, session: ReviewSession, card: Card | None) -> dict[str, object]:
@@ -561,37 +547,32 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
             port = int(raw_port)
         except ValueError as error:
             raise ValueError("PORT must be an integer between 1 and 65535") from error
+        raw_db = settings.get("db_path", settings.get("RECALL_DB"))
         app_settings = Settings(
             cards_dir=Path(raw_cards_dir),
             host=raw_host,
             port=port,
             git_sync=_git_sync_enabled(raw_git_sync),
+            db_path=Path(raw_db) if isinstance(raw_db, (str, Path)) and raw_db else None,
         )
 
+    assert app_settings.db_path is not None
     state = AppState(
         settings=app_settings,
-        log=ReviewLog(app_settings.cards_dir / ".recall" / "reviews.jsonl"),
+        log=ReviewStore(
+            app_settings.db_path,
+            legacy_log=app_settings.cards_dir / ".recall" / "reviews.jsonl",
+        ),
     )
     if app_settings.git_sync:
-        state.git_sync = GitSync(
-            app_settings.cards_dir,
-            state.log,
-            timeout=app_settings.git_sync_timeout,
-        )
+        state.git_sync = GitSync(app_settings.cards_dir, timeout=app_settings.git_sync_timeout)
     templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         await _run_sync(state, force=True)
         refresh_decks(state, force=True)
-        idle_task = asyncio.create_task(_idle_sync_loop(state))
-        try:
-            yield
-        finally:
-            idle_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await idle_task
-            await _run_sync(state, force=True)
+        yield
 
     app = FastAPI(title="recall", lifespan=lifespan)
     app.state.recall = state
@@ -691,13 +672,10 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
             reviewed_at = datetime.now(UTC)
             state.scheduler.record(card_id, rating, elapsed, reviewed_at)
             state.pending_reviews = state.log.pending
-            state.last_review_at = reviewed_at
             session.reviewed += 1
             next_card = state.scheduler.next_card(submitted_scope, datetime.now(UTC))
             _present(session, next_card)
 
-        if next_card is None:
-            await _run_sync(state, force=True)
         response = _review_response(request, templates, state, session, next_card)
         _set_session_cookie(response, token, new)
         return response
@@ -713,8 +691,6 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
             token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
             removed = state.scheduler.undo()
             state.pending_reviews = state.log.pending
-            if state.pending_reviews == 0:
-                state.last_review_at = None
             if removed is not None:
                 session.reviewed = max(0, session.reviewed - 1)
             card = _card_by_id(state, removed.card) if removed is not None else None
@@ -735,7 +711,6 @@ def create_app(settings: Settings | Mapping[str, object] | None = None) -> FastA
             submitted_scope = _validated_scope(state, _required_string(payload, "scope"))
             token, session, new = _session_from_cookie(request, state, submitted_scope, replace=False)
             _present(session, None)
-        await _run_sync(state, force=True)
         response = _review_response(request, templates, state, session, None)
         _set_session_cookie(response, token, new)
         return response
