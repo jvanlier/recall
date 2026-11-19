@@ -10,9 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from recall.gitsync import GitSync, SyncResult
-from recall.log import ReviewLog
-from recall.main import AppState, Settings, _run_sync, create_app
+from recall.main import AppState, Settings, _run_sync, create_app, load_settings
 from recall.parser import load_repo
+from recall.store import ReviewStore
 
 
 def app_for(tmp_path: Path, source: str = "Question::Answer\n"):
@@ -37,9 +37,9 @@ def test_deck_list_counts_and_healthz(tmp_path: Path) -> None:
     assert ">1</strong> new" in response.text
 
 
-def test_browse_renders_fixture_cards_including_hidden_cards() -> None:
+def test_browse_renders_fixture_cards_including_hidden_cards(tmp_path: Path) -> None:
     cards_dir = Path(__file__).parents[1] / "examples" / "cards"
-    with TestClient(create_app(Settings(cards_dir, git_sync=False))) as client:
+    with TestClient(create_app(Settings(cards_dir, git_sync=False, db_path=tmp_path / "reviews.db"))) as client:
         response = client.get("/browse/Foundations")
 
     assert response.status_code == 200
@@ -78,8 +78,8 @@ def test_manifest_is_served_as_installable_web_manifest(tmp_path: Path) -> None:
 def test_timed_out_sync_refreshes_when_worker_finishes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / "Deck.md").write_text("Question::Answer\n", encoding="utf-8")
     settings = Settings(tmp_path, git_sync_timeout=0.01)
-    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
-    syncer = GitSync(tmp_path, log)
+    log = ReviewStore(tmp_path / "reviews.db")
+    syncer = GitSync(tmp_path)
     state = AppState(settings=settings, log=log, git_sync=syncer)
 
     def slow_sync() -> SyncResult:
@@ -99,37 +99,13 @@ def test_timed_out_sync_refreshes_when_worker_finishes(tmp_path: Path, monkeypat
     assert state.scheduler is not None
 
 
-def test_final_rating_triggers_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    (tmp_path / ".recall").mkdir()
-    (tmp_path / ".recall" / "config.toml").write_text("learn_ahead_minutes = 0\n", encoding="utf-8")
-    app = app_for(tmp_path)
-    card = load_repo(tmp_path).cards[0]
-    calls: list[bool] = []
-
-    def sync() -> SyncResult:
-        calls.append(True)
-        return SyncResult()
-
-    with TestClient(app) as client:
-        syncer = app.state.recall.git_sync
-        assert syncer is not None
-        monkeypatch.setattr(syncer, "sync", sync)
-        response = client.get("/review/Deck")
-        response = client.post(
-            "/review/rate",
-            data={
-                "card": card.id,
-                "scope": "Deck",
-                "rating": "3",
-                "ms": "42",
-                "presentation": presentation_token(response.text),
-            },
-        )
-        assert "Session complete" in response.text
-        assert calls
+def test_database_path_defaults_inside_cards_dir_and_can_be_overridden(tmp_path: Path) -> None:
+    assert Settings(tmp_path).db_path == tmp_path / ".recall" / "reviews.db"
+    settings = load_settings({"RECALL_CARDS_DIR": str(tmp_path), "RECALL_DB": str(tmp_path / "data" / "r.db")})
+    assert settings.db_path == tmp_path / "data" / "r.db"
 
 
-def test_review_cycle_appends_to_log(tmp_path: Path) -> None:
+def test_review_cycle_stores_review(tmp_path: Path) -> None:
     app = app_for(tmp_path)
     card = load_repo(tmp_path).cards[0]
 
@@ -153,7 +129,8 @@ def test_review_cycle_appends_to_log(tmp_path: Path) -> None:
         assert "Session complete" in response.text
         assert "Undo last rating" in response.text
 
-    assert '"rating": 3' in (tmp_path / ".recall" / "reviews.jsonl").read_text(encoding="utf-8")
+    reviews = ReviewStore(tmp_path / ".recall" / "reviews.db").read()
+    assert [(review.card, review.rating, review.ms) for review in reviews] == [(card.id, 3, 42)]
 
 
 def test_stale_rating_is_rejected_and_new_session_resets_count(tmp_path: Path) -> None:
@@ -196,7 +173,7 @@ def test_undo_removes_last_review_and_shows_card_again(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert "Question" in response.text
-    assert not (tmp_path / ".recall" / "reviews.jsonl").read_text(encoding="utf-8")
+    assert ReviewStore(tmp_path / ".recall" / "reviews.db").read() == []
 
 
 def test_deck_links_encode_url_delimiters(tmp_path: Path) -> None:

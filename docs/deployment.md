@@ -1,8 +1,8 @@
 # Deployment
 
 The server runs `recall` in Docker and mounts a clone of the private cards
-repository. The container uses a GitHub deploy key to push review sessions
-back to that repository.
+repository, which it pulls with a read-only GitHub deploy key. Review history
+is stored in a SQLite database in a separate `recall-data` directory.
 
 ## First deployment
 
@@ -29,7 +29,7 @@ interactive access.
 
 Add `secrets/deploy_key.pub` to
 [`jvanlier/recall-cards` → Settings → Deploy keys](https://github.com/jvanlier/recall-cards/settings/keys)
-with **Allow write access** enabled. The private key stays on the server and
+with **Allow write access** left off. The private key stays on the server and
 is mounted read-only into the container; it is never copied into the image.
 
 Create the known-hosts file and verify its fingerprint against GitHub's
@@ -52,28 +52,26 @@ GIT_SSH_COMMAND="ssh -i \"$PWD/secrets/deploy_key\" \
 ```
 
 The image runs as the non-root user with UID 1000. The cards directory and
-both secret files must be readable by that UID, and the cards directory must
-be writable. If the server account uses another UID/GID, use `sudo` to give
-the container user ownership of the mounts before starting the service:
+both secret files must be readable by that UID, and the cards and data
+directories must be writable. If the server account uses another UID/GID,
+use `sudo` to give the container user ownership of the mounts before
+starting the service:
 
 ```sh
-sudo chown -R 1000:1000 recall-cards
+mkdir -p recall-data
+sudo chown -R 1000:1000 recall-cards recall-data
 sudo chown 1000:1000 secrets/deploy_key secrets/known_hosts
 sudo chmod 600 secrets/deploy_key
 ```
 
 Keep the deploy key mode at `600`.
 
-Create a `.env` file next to `compose.yaml` and set the identity used for
-review commits. Keep this file and the `secrets/` directory private:
+Optionally, create a `.env` file next to `compose.yaml` to override the
+defaults. Keep the `secrets/` directory private:
 
 ```dotenv
 PORT=8000
 TZ=Europe/Amsterdam
-GIT_AUTHOR_NAME=Recall
-GIT_AUTHOR_EMAIL=recall@example.invalid
-GIT_COMMITTER_NAME=Recall
-GIT_COMMITTER_EMAIL=recall@example.invalid
 ```
 
 Build and start the service:
@@ -84,6 +82,26 @@ docker compose up -d
 
 It serves on `http://server:8000` by default. The health endpoint is
 `/healthz`.
+
+## Backups
+
+`recall-data/reviews.db` holds the complete review history and is not in Git,
+so include it in the server's backups. To take a consistent copy while the app
+is running:
+
+```sh
+docker compose exec recall python -c \
+  "import sqlite3; sqlite3.connect('/data/reviews.db').backup(sqlite3.connect('/data/backup.db'))"
+```
+
+## Migrating from `reviews.jsonl`
+
+Earlier versions committed reviews to `.recall/reviews.jsonl` in the cards
+repository. If the database is empty at startup, the app imports that file
+once. After upgrading, create `recall-data` as described above, start the
+service, and check that the due counts look right. Then delete
+`.recall/reviews.jsonl` and `.gitattributes` from the cards repository on
+your laptop. The deploy key no longer needs write access.
 
 ## Updates
 
@@ -108,7 +126,6 @@ Follow the application logs with:
 docker compose logs -f recall
 ```
 
-The app's Git failures are also shown as a warning on the deck-list page and
-are retried by the next sync trigger. The cards clone can be inspected on the
-server with normal Git commands; review commits are pushed automatically when
-a session ends, after five minutes of inactivity, and during shutdown.
+The app's Git pull failures are also shown as a warning on the deck-list page
+and are retried on the next deck load. The server clone is pulled with
+`--ff-only`, so it must never have local commits.

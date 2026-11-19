@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from recall.log import Review, ReviewLog
 from recall.parser import load_repo
 from recall.scheduler import Scheduler, SchedulerConfig, _day_bounds, load_config
+from recall.store import Review, ReviewStore
 
 NOW = datetime(2026, 6, 10, 12, tzinfo=UTC)
 
@@ -47,7 +47,7 @@ def test_new_card_limit_is_global_across_decks(tmp_path: Path) -> None:
     (tmp_path / "A.md").write_text("one::1\n", encoding="utf-8")
     (tmp_path / "B.md").write_text("two::2\n", encoding="utf-8")
     result = load_repo(tmp_path)
-    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
+    log = ReviewStore(tmp_path / "reviews.db")
     scheduler = Scheduler(
         result,
         log=log,
@@ -87,7 +87,7 @@ def test_day_boundary_uses_timezone_rules_for_dst(
 
 def test_reversible_sibling_is_buried_but_learning_card_returns(tmp_path: Path) -> None:
     result = parsed_repo(tmp_path, "front:::back\n")
-    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
+    log = ReviewStore(tmp_path / "reviews.db")
     scheduler = Scheduler(
         result,
         log=log,
@@ -105,7 +105,7 @@ def test_reversible_sibling_is_buried_but_learning_card_returns(tmp_path: Path) 
 
 def test_record_matches_state_after_reloading_log(tmp_path: Path) -> None:
     result = parsed_repo(tmp_path, "one::1\n")
-    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
+    log = ReviewStore(tmp_path / "reviews.db")
     scheduler = Scheduler(result, log=log)
     card = scheduler.next_card("all", NOW)
     assert card is not None and card.id is not None
@@ -121,7 +121,7 @@ def test_record_matches_state_after_reloading_log(tmp_path: Path) -> None:
 
 def test_undo_replays_the_card(tmp_path: Path) -> None:
     result = parsed_repo(tmp_path, "one::1\n")
-    log = ReviewLog(tmp_path / ".recall" / "reviews.jsonl")
+    log = ReviewStore(tmp_path / "reviews.db")
     scheduler = Scheduler(result, log=log)
     card = scheduler.next_card("all", NOW)
     assert card is not None and card.id is not None
