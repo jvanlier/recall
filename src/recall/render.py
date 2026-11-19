@@ -249,5 +249,5 @@ def render_card(card: Card, cards_root: Path | None = None) -> RenderedCard:
     back_html = md.render(card.back)
     return RenderedCard(
         front_html=front_html,
-        back_html=front_html + "<hr>\n" + back_html,
+        back_html=back_html,
     )
