@@ -1,6 +1,6 @@
 # Deployment
 
-The server runs `recall` in Docker and mounts a clone of the private cards
+The server runs Total Recall in Docker and mounts a clone of the private cards
 repository, which it pulls with a read-only GitHub deploy key. Review history
 is stored in a SQLite database in a separate `recall-data` directory.
 

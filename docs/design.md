@@ -1,6 +1,6 @@
 # Design
 
-recall is a hyper-personal spaced repetition web app. Cards are markdown in
+Total Recall is a hyper-personal spaced repetition web app. Cards are markdown in
 a git repo, edited by hand. The app only reviews them, and records reviews
 back into the same repo. The card syntax is in
 [card-format.md](card-format.md).
@@ -66,7 +66,7 @@ Defaults, which `.recall/config.toml` can override:
   10 minutes.
 
 Later, we can fit FSRS parameters to your own history with an offline
-`recall optimize` command. It would use `fsrs-rs-python`, which needs no
+`total-recall optimize` command. It would use `fsrs-rs-python`, which needs no
 torch and has Python 3.14 wheels. It writes the parameters to
 `config.toml`.
 
@@ -186,8 +186,8 @@ src/recall/
   scheduler.py   replay log through FSRS, build queues, bury siblings
   gitsync.py     pull card edits via git CLI
   render.py      markdown -> HTML, cloze masking
-  check.py       `recall check` (shares the parser)
-  cli.py         `recall serve`, `recall check`
+  check.py       `total-recall check` (shares the parser)
+  cli.py         `total-recall serve`, `total-recall check`
   main.py        FastAPI app and routes
   templates/
   static/        htmx, KaTeX, CSS, manifest
@@ -223,7 +223,7 @@ The `recall` repo runs:
 - In GitHub Actions: `uv run prek run --all-files` and `uv run pytest`.
 
 The cards repo runs prettier (`--prose-wrap preserve`),
-`markdownlint-cli2`, `lychee --offline` and `recall check`. The last one is
+`markdownlint-cli2`, `lychee --offline` and `total-recall check`. The last one is
 exposed through a `.pre-commit-hooks.yaml` in the `recall` repo, so the
 cards repo references it over SSH. The markdownlint settings are in
 [card-format.md](card-format.md#checking-your-cards).
@@ -249,7 +249,7 @@ The app runs in Docker on a home server.
 
 - A relink screen for cards whose front you reworded.
 - Stats: reviews today, a forecast, and actual versus target retention.
-- `recall optimize` to fit FSRS parameters; FSRS-7 once it's released.
+- `total-recall optimize` to fit FSRS parameters; FSRS-7 once it's released.
 - Numbered or overlapping clozes, and typed answers.
 - A weekly CI job that runs lychee on external links.
 

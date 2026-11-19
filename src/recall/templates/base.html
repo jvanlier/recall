@@ -10,11 +10,11 @@
     <link rel="apple-touch-icon" href="{{ url_for('static', path='icons/icon-192.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='katex.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
-    <title>{% block title %}recall{% endblock %}</title>
+    <title>{% block title %}Total Recall{% endblock %}</title>
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="{{ url_for('deck_list') }}">recall</a>
+      <a class="brand" href="{{ url_for('deck_list') }}">Total Recall</a>
       {% block header_actions %}{% endblock %}
     </header>
     {% block content %}{% endblock %}
