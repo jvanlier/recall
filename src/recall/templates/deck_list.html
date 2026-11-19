@@ -22,14 +22,14 @@
   {% macro node(item) %}
   <li class="deck-node deck-node-{{ item.kind }}">
     <div class="deck-row">
-      <a href="/review/{{ item.path|urlencode }}">
-        <span class="deck-name">{{ item.name }}</span>
-        {% if item.kind == 'folder' %}<span class="folder-label">folder</span>{% endif %}
-      </a>
-      <span class="deck-actions">
-        <a class="button button-small" href="/browse/{{ item.path|urlencode }}">Browse</a>
+      <a class="deck-review" href="/review/{{ item.path|urlencode }}">
+        <span>
+          <span class="deck-name">{{ item.name }}</span>
+          {% if item.kind == 'folder' %}<span class="folder-label">folder</span>{% endif %}
+        </span>
         <span class="deck-counts"><strong>{{ item.due }}</strong> due · <strong>{{ item.new }}</strong> new</span>
-      </span>
+      </a>
+      <a class="deck-browse" href="/browse/{{ item.path|urlencode }}" aria-label="Browse {{ item.name }}">Browse</a>
     </div>
     {% if item.children %}
     <ul class="deck-children">

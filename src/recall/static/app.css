@@ -85,15 +85,25 @@ h2 { margin-top: 0; }
 .deck-tree { margin: 1.5rem 0; padding: 0; list-style: none; }
 .deck-node { margin: .35rem 0; }
 .deck-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
-  min-height: 3.5rem; padding: .65rem .8rem; border: 1px solid var(--border);
+  display: flex; align-items: stretch;
+  min-height: 3.5rem; border: 1px solid var(--border);
   border-radius: .55rem; background: var(--surface);
 }
 .deck-row a { min-width: 0; color: var(--text); text-decoration: none; }
+.deck-row a:hover { background: var(--surface-muted); }
+.deck-row a:focus-visible { outline-offset: -3px; }
+.deck-review {
+  display: flex; flex: 1; align-items: center; flex-wrap: wrap; gap: .25rem 1rem;
+  padding: .65rem .8rem; border-radius: .5rem 0 0 .5rem;
+}
+.deck-browse {
+  display: flex; align-items: center; flex-shrink: 0; padding: .65rem .8rem;
+  border-left: 1px solid var(--border); border-radius: 0 .5rem .5rem 0;
+  font-size: .9rem; font-weight: 650;
+}
 .deck-name { font-weight: 700; overflow-wrap: anywhere; }
 .folder-label { margin-left: .5rem; }
-.deck-actions { display: flex; align-items: center; flex-shrink: 0; gap: .75rem; }
-.deck-counts { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.deck-counts { margin-left: auto; color: var(--muted); font-size: .9rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .deck-counts strong:first-child { color: var(--accent); }
 .button-small { min-height: 2.25rem; padding: .35rem .7rem; font-size: .9rem; }
 .deck-children { margin: .35rem 0 .5rem 1.25rem; padding: 0; list-style: none; }
@@ -177,9 +187,8 @@ h2 { margin-top: 0; }
   .site-header, .page { padding-left: 1rem; padding-right: 1rem; }
   .page-heading { align-items: stretch; flex-direction: column; }
   .review-all { width: 100%; }
-  .deck-row { align-items: flex-start; flex-direction: column; gap: .5rem; }
-  .deck-actions { width: 100%; justify-content: space-between; }
-  .deck-counts { white-space: normal; }
+  .deck-review { align-items: flex-start; flex-direction: column; }
+  .deck-counts { align-self: flex-end; }
   .deck-children { margin-left: .7rem; }
   .browse-heading { align-items: stretch; }
   .browse-heading .button { width: 100%; }
