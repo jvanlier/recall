@@ -58,6 +58,28 @@ An unclosed $formula
     assert output.endswith("0 decks, 0 cards, 4 problems\n")
 
 
+def test_check_cards_subdirectory_uses_repository_image_boundary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tmp_path / "cards").mkdir()
+    (tmp_path / "images").mkdir()
+    (tmp_path / "images" / "present.png").write_bytes(b"image")
+    (tmp_path / "README.md").write_text("Invalid\n?\n![missing](missing.png)\n$oops\n", encoding="utf-8")
+    (tmp_path / "cards" / "Deck.md").write_text(
+        "Question\n?\n![present](../images/present.png)\n"
+        "![missing](../images/missing.png)\n![escape](../../outside.png)\n$oops\n",
+        encoding="utf-8",
+    )
+
+    assert main(["check", str(tmp_path)]) == 1
+
+    output = capsys.readouterr().out
+    assert "cards/Deck.md:4: missing image: '../images/missing.png'" in output
+    assert "cards/Deck.md:5: image path escapes repository: '../../outside.png'" in output
+    assert "cards/Deck.md:6: unclosed math delimiter '$'" in output
+    assert output.endswith("1 decks, 1 cards, 3 problems\n")
+
+
 def test_check_respects_code_and_math_precedence(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     (tmp_path / "Deck.md").write_text(
         """Question

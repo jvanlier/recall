@@ -1,12 +1,12 @@
 from pathlib import Path
 
-from recall.parser import load_repo
+from recall.check import check_repo
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "cards"
 
 
 def test_example_cards_parse_without_warnings() -> None:
-    result = load_repo(EXAMPLES)
+    result = check_repo(EXAMPLES)
 
     assert result.warnings == []
     assert result.decks == ["Foundations", "Languages/Spanish"]

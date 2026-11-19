@@ -6,12 +6,14 @@ reference. See [design.md](design.md) for how it all fits together.
 
 ## Decks
 
-- Every `.md` file in the cards repo is a deck. Dot-directories (`.git`,
-  `.recall`, ...) are skipped.
-- The deck name is the file path relative to the repo root, without `.md`:
-  `Spanish/Verbs.md` is deck `Spanish/Verbs`.
+- Put decks in the cards repo's `cards/` directory. Only `.md` files below
+  that directory are scanned, so root-level `README.md` and `AGENTS.md` are ignored.
+- Repositories without a `cards/` directory are scanned from the repo root
+  for compatibility. Dot-directories (`.git`, `.recall`, ...) are skipped.
+- The deck name is the file path relative to the deck directory, without `.md`:
+  `cards/Spanish/Verbs.md` is deck `Spanish/Verbs`.
 - Folders group decks. Reviewing a folder reviews every deck below it.
-- Files without cards (a `README.md`, say) don't show up as decks.
+- Files without cards don't show up as decks.
 
 ## Blocks
 
