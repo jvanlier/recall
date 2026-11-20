@@ -10,8 +10,8 @@ Install Docker Engine and the Docker Compose plugin on the server. Clone the
 application repository and enter its directory:
 
 ```sh
-git clone git@github.com:jvanlier/recall.git recall
-cd recall
+git clone git@github.com:jvanlier/total-recall.git total-recall
+cd total-recall
 ```
 
 If the application repository is already checked out, just enter that
@@ -28,7 +28,7 @@ agent to unlock it. Protect `secrets/deploy_key` and do not reuse it for
 interactive access.
 
 Add `secrets/deploy_key.pub` to
-[`jvanlier/recall-cards` → Settings → Deploy keys](https://github.com/jvanlier/recall-cards/settings/keys)
+[`jvanlier/total-recall-cards` → Settings → Deploy keys](https://github.com/jvanlier/total-recall-cards/settings/keys)
 with **Allow write access** left off. The private key stays on the server and
 is mounted read-only into the container; it is never copied into the image.
 
@@ -48,8 +48,13 @@ cards repository with that key:
 GIT_SSH_COMMAND="ssh -i \"$PWD/secrets/deploy_key\" \
   -o UserKnownHostsFile=\"$PWD/secrets/known_hosts\" \
   -o StrictHostKeyChecking=yes" \
-  git clone git@github.com:jvanlier/recall-cards.git recall-cards
+  git clone git@github.com:jvanlier/total-recall-cards.git recall-cards
 ```
+
+Put decks in `recall-cards/cards/`. Keep the whole clone mounted at `/cards`
+and `RECALL_CARDS_DIR=/cards`, as configured in `compose.yaml`. The app scans
+`/cards/cards/` when present; configuration and Git sync use the repository root.
+Existing repositories without a `cards/` subdirectory are scanned from the root.
 
 The image runs as the non-root user with UID 1000. The cards directory and
 both secret files must be readable by that UID, and the cards and data

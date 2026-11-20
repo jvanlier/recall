@@ -300,6 +300,37 @@ three::3
     assert all("<!--" not in card.front for card in result.cards)
 
 
+def test_cards_subdirectory_preserves_ids_and_repository_source_paths(tmp_path: Path) -> None:
+    deck = tmp_path / "Languages" / "Spanish.md"
+    deck.parent.mkdir()
+    deck.write_text("gato:::cat\n", encoding="utf-8")
+    original = load_repo(tmp_path)
+
+    cards = tmp_path / "cards"
+    cards.mkdir()
+    deck.parent.rename(cards / "Languages")
+    (cards / ".hidden").mkdir()
+    (cards / ".hidden" / "Deck.md").write_text("hidden::answer\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("Accidental::card\n", encoding="utf-8")
+    (tmp_path / "AGENTS.md").write_text("Invalid\n?\n", encoding="utf-8")
+    (tmp_path / "notes").mkdir()
+    (tmp_path / "notes" / "Notes.md").write_text("Outside::card\n", encoding="utf-8")
+
+    result = load_repo(tmp_path)
+
+    assert result.decks == ["Languages/Spanish"]
+    assert [card.id for card in result.cards] == [card.id for card in original.cards]
+    assert all(card.file == Path("cards/Languages/Spanish.md") for card in result.cards)
+    assert result.warnings == []
+
+
+def test_empty_cards_subdirectory_does_not_fall_back_to_root(tmp_path: Path) -> None:
+    (tmp_path / "cards").mkdir()
+    (tmp_path / "README.md").write_text("Accidental::card\n", encoding="utf-8")
+
+    assert load_repo(tmp_path).cards == []
+
+
 def test_commented_out_cards_and_nested_dot_directories_are_ignored(
     tmp_path: Path,
 ) -> None:

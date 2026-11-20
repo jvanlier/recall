@@ -16,7 +16,7 @@ What is the derivative of $x^2$?
 
 The derivative is $2x$.
 
-![A blue recall flower](images/recall.svg)
+![A blue recall flower](../images/recall.svg)
 
 ---
 

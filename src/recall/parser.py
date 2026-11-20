@@ -482,10 +482,9 @@ def _parse_block(
     return cards
 
 
-def _parse_file(root: Path, path: Path) -> tuple[list[Card], list[Warning]]:
-    relative = path.relative_to(root)
-    file = relative
-    deck = relative.with_suffix("").as_posix()
+def _parse_file(root: Path, path: Path, deck_root: Path) -> tuple[list[Card], list[Warning]]:
+    file = path.relative_to(root)
+    deck = path.relative_to(deck_root).with_suffix("").as_posix()
     source = path.read_text(encoding="utf-8")
     lines = source.splitlines(keepends=True)
     if not lines and source:
@@ -534,28 +533,35 @@ def _is_hidden_path(path: Path, root: Path) -> bool:
     return any(part.startswith(".") for part in relative.parent.parts)
 
 
+def _deck_root(root: Path) -> Path:
+    return root / "cards" if (root / "cards").is_dir() else root
+
+
 def markdown_files(root: Path) -> list[Path]:
-    """Return visible markdown files below *root* in repository order."""
+    """Return visible markdown decks from cards/ when present, otherwise *root*."""
     root = Path(root)
+    deck_root = _deck_root(root)
     return sorted(
-        (path for path in root.rglob("*.md") if path.is_file() and not _is_hidden_path(path, root)),
+        (path for path in deck_root.rglob("*.md") if path.is_file() and not _is_hidden_path(path, deck_root)),
         key=lambda path: path.relative_to(root).as_posix(),
     )
 
 
 def load_repo(root: Path) -> ParseResult:
-    """Parse all visible markdown decks below *root*.
+    """Parse visible markdown decks in cards/ when present, otherwise *root*.
 
-    Files and cards are ordered by their repository-relative path and source
+    Deck names are relative to the deck directory; source paths stay relative
+    to the repository root. Files and cards are ordered by their path and source
     line.  No repository state is written or inferred while parsing.
     """
     root = Path(root)
     paths = markdown_files(root)
+    deck_root = _deck_root(root)
 
     cards: list[Card] = []
     warnings: list[Warning] = []
     for path in paths:
-        file_cards, file_warnings = _parse_file(root, path)
+        file_cards, file_warnings = _parse_file(root, path, deck_root)
         cards.extend(file_cards)
         warnings.extend(file_warnings)
 
